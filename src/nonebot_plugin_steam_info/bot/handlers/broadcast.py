@@ -24,7 +24,6 @@ from ...infra.utils import (
 from ..nonebot_utils import get_target
 from ..service import (
     cache_path,
-    client,
     config,
     group_store,
     steam_state,

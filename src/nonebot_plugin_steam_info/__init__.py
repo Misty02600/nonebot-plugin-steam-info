@@ -1,4 +1,4 @@
-﻿from nonebot import require
+from nonebot import require
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 
 require("nonebot_plugin_alconna")
@@ -29,4 +29,3 @@ steamnickname [昵称]: 设置玩家昵称
 
 # 导入 handlers 以注册所有命令处理器
 from .bot import handlers as handlers
-

@@ -15,16 +15,17 @@ from nonebot.log import logger
 
 from ..core.models import PlayerData, PlayerSummaries
 
-STEAM_ID_OFFSET = 76561197960265728
-
-STEAM_API_URL = (
-    "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/"
-    "?key={key}&steamids={steamids}"
-)
-
 
 class SteamAPIClient:
-    """Steam Web API 客户端 — 封装配置，一次初始化到处复用"""
+    """Steam Web API 客户端"""
+
+    STEAM_ID_OFFSET = 76561197960265728
+    STEAM_API_URL = (
+        "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/"
+        "?key={key}&steamids={steamids}"
+    )
+    # 单次请求最多 100 个 steamid（Steam 官方硬限制）
+    MAX_BATCH = 100
 
     def __init__(
         self,
@@ -45,16 +46,18 @@ class SteamAPIClient:
         if len(steam_ids) == 0:
             return cast(PlayerSummaries, {"response": {"players": []}})
 
-        if len(steam_ids) > 100:
+        if len(steam_ids) > self.MAX_BATCH:
             # 分批获取，批次间添加延迟
             result: PlayerSummaries = cast(
                 PlayerSummaries, {"response": {"players": []}}
             )
-            for i in range(0, len(steam_ids), 100):
+            for i in range(0, len(steam_ids), self.MAX_BATCH):
                 if i > 0:
                     logger.debug(f"分批请求间隔 {self._batch_delay}s...")
                     await asyncio.sleep(self._batch_delay)
-                batch_result = await self.get_users_info(steam_ids[i : i + 100])
+                batch_result = await self.get_users_info(
+                    steam_ids[i : i + self.MAX_BATCH]
+                )
                 result["response"]["players"].extend(
                     batch_result["response"]["players"]
                 )
@@ -207,7 +210,9 @@ class SteamAPIClient:
 
             last_played = re.search(r"最后运行日期：(.*) 日", play_time_info)
             if last_played is not None:
-                game_info["last_played"] = "最后运行日期：" + last_played.group(1) + " 日"
+                game_info["last_played"] = (
+                    "最后运行日期：" + last_played.group(1) + " 日"
+                )
             else:
                 game_info["last_played"] = "当前正在游戏"
 
@@ -228,7 +233,8 @@ class SteamAPIClient:
                 achievement_info["image"] = await self._fetch(
                     achievement_info["image_url"],
                     default_achievement_image,
-                    cache_file=cache_path / f"achievement_{ach_split[-2]}_{ach_split[-1]}"
+                    cache_file=cache_path
+                    / f"achievement_{ach_split[-2]}_{ach_split[-1]}"
                     if cache_path
                     else None,
                 )
@@ -261,9 +267,7 @@ class SteamAPIClient:
 
         return cast(PlayerData, result)
 
-    async def _request_with_retry(
-        self, steam_ids: list[str]
-    ) -> PlayerSummaries | None:
+    async def _request_with_retry(self, steam_ids: list[str]) -> PlayerSummaries | None:
         """带重试和退避的 Steam API 请求。
 
         限流策略：
@@ -281,7 +285,7 @@ class SteamAPIClient:
             while retry_count <= self._max_retries:
                 try:
                     async with httpx.AsyncClient(proxy=self._proxy) as client:
-                        url = STEAM_API_URL.format(
+                        url = self.STEAM_API_URL.format(
                             key=api_key, steamids=steamids_str
                         )
                         response = await client.get(url)
@@ -376,16 +380,16 @@ class SteamAPIClient:
             logger.error(f"Failed to get image: {exc}")
         return default
 
-    @staticmethod
-    def get_steam_id(steam_id_or_steam_friends_code: str) -> str | None:
+    @classmethod
+    def get_steam_id(cls, steam_id_or_steam_friends_code: str) -> str | None:
         """将好友码或 Steam ID 转换为 64 位 Steam ID"""
         if not steam_id_or_steam_friends_code.isdigit():
             return None
 
         id_ = int(steam_id_or_steam_friends_code)
 
-        if id_ < STEAM_ID_OFFSET:
-            return str(id_ + STEAM_ID_OFFSET)
+        if id_ < cls.STEAM_ID_OFFSET:
+            return str(id_ + cls.STEAM_ID_OFFSET)
 
         return steam_id_or_steam_friends_code
 

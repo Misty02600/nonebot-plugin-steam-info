@@ -1,4 +1,3 @@
-
 import nonebot
 from nonebot.log import logger
 from nonebot_plugin_apscheduler import scheduler

@@ -9,10 +9,10 @@ from nonebot_plugin_alconna import At, Image, Target, UniMessage
 from PIL import Image as PILImage
 
 from ...infra.draw import draw_player_status
-from ...infra.steam_client import STEAM_ID_OFFSET
+from ...infra.steam_client import SteamAPIClient
 from ...infra.utils import image_to_bytes
 from ..nonebot_utils import get_target
-from ..service import cache_path, client, config, group_store
+from ..service import cache_path, client, group_store
 
 info = on_command("steaminfo", aliases={"steam信息"}, priority=10)
 
@@ -35,25 +35,25 @@ async def info_handle(
         if bind_record is None:
             await info.finish("该用户未绑定 Steam ID")
         steam_id = bind_record.steam_id
-        steam_friend_code = str(int(steam_id) - STEAM_ID_OFFSET)
+        steam_friend_code = str(int(steam_id) - SteamAPIClient.STEAM_ID_OFFSET)
     elif arg.extract_plain_text().strip() != "":
         steam_id_int = int(arg.extract_plain_text().strip())
-        if steam_id_int < STEAM_ID_OFFSET:
+        if steam_id_int < SteamAPIClient.STEAM_ID_OFFSET:
             steam_friend_code = steam_id_int
-            steam_id_int += STEAM_ID_OFFSET
+            steam_id_int += SteamAPIClient.STEAM_ID_OFFSET
         else:
-            steam_friend_code = steam_id_int - STEAM_ID_OFFSET
+            steam_friend_code = steam_id_int - SteamAPIClient.STEAM_ID_OFFSET
         steam_id = str(steam_id_int)
     else:
         bind_record = group_store.get_bind(parent_id, event.get_user_id())
 
         if bind_record is None:
             await info.finish(
-                "未绑定 Steam ID, 请使用 "steambind [Steam ID 或 Steam好友代码]" 绑定 Steam ID"
+                '未绑定 Steam ID, 请使用 "steambind [Steam ID 或 Steam好友代码]" 绑定 Steam ID'
             )
 
         steam_id = bind_record.steam_id
-        steam_friend_code = str(int(steam_id) - STEAM_ID_OFFSET)
+        steam_friend_code = str(int(steam_id) - SteamAPIClient.STEAM_ID_OFFSET)
 
     player_data = await client.get_user_data(int(steam_id), cache_path)
 

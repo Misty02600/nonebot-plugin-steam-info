@@ -4,13 +4,8 @@
 """
 
 import nonebot
-from nonebot import require
-from nonebot.log import logger
-
-require("nonebot_plugin_localstore")
-require("nonebot_plugin_apscheduler")
-
 import nonebot_plugin_localstore as store
+from nonebot.log import logger
 
 from ..config import Config
 from ..infra.draw import check_font, set_font_paths

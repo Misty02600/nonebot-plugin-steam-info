@@ -91,11 +91,7 @@ class GroupStore(JsonStore[GroupDataStore]):
 
     def get_all_steam_ids_global(self) -> list[str]:
         return list(
-            {
-                r.steam_id
-                for config in self.data.groups.values()
-                for r in config.binds
-            }
+            {r.steam_id for config in self.data.groups.values() for r in config.binds}
         )
 
     def get_all_parent_ids(self) -> list[str]:

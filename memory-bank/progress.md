@@ -23,20 +23,15 @@
 
 ## 已完成重构
 - [x] TASK001: 代码结构重构为三层架构 (core/infra/bot)
-  - core/models.py — TypedDict 定义
-  - infra/ — steam_api.py, data_source.py, draw.py, utils.py
-  - bot/service.py — 服务实例化
-  - bot/nonebot_utils.py — NoneBot 工具函数
-  - bot/handlers/ — 8 个独立 handler 文件
-  - __init__.py — 瘦入口（仅 PluginMetadata + import handlers）
 - [x] TASK002: Steam API 限流优化
-  - 429/Retry-After 感知、指数退避、分批延迟、16 个新测试
-
-## 待完成
-- [ ] TASK003: 数据层强化 + SteamAPIClient 重构
+- [x] TASK003: 数据层强化 + SteamAPIClient 重构
   - 合并 bind_data + parent_data + disable → GroupConfig（groups.json）
   - steam_info 改为纯内存（SteamInfoState）
   - steam_api.py 重构为 SteamAPIClient 类
-  - 序列化：msgspec.Struct
-  - 启动时自动迁移旧数据（migration.py）
+  - 序列化：msgspec.Struct + 启动时自动迁移旧数据
+  - 20 个测试全部通过
+
+## 待完成
+- 无明确待完成任务（等待用户需求）
+
 
