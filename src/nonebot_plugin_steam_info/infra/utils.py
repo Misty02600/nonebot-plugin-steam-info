@@ -1,27 +1,30 @@
-import time
-import pytz
-import httpx
-import datetime
+from __future__ import annotations
+
 import calendar
-from PIL import Image
+import datetime
+import time
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any
 
-from .models import Player
-from .data_source import BindData
+import httpx
+import pytz
+from PIL import Image
+
+from ..core.models import Player
+from .stores import GroupStore
 
 
-async def _fetch_avatar(avatar_url: str, proxy: str = None) -> Image.Image:
+async def _fetch_avatar(avatar_url: str, proxy: str | None = None) -> Image.Image:
     async with httpx.AsyncClient(proxy=proxy) as client:
         response = await client.get(avatar_url)
         if response.status_code != 200:
-            return Image.open(Path(__file__).parent / "res/unknown_avatar.jpg")
+            return Image.open(Path(__file__).parent.parent / "res/unknown_avatar.jpg")
         return Image.open(BytesIO(response.content))
 
 
 async def fetch_avatar(
-    player: Player, avatar_dir: Optional[Path], proxy: str = None
+    player: Player, avatar_dir: Path | None, proxy: str | None = None
 ) -> Image.Image:
     if avatar_dir is not None:
         avatar_path = (
@@ -41,22 +44,23 @@ async def fetch_avatar(
 
 
 def convert_player_name_to_nickname(
-    data: Dict[str, str], parent_id: str, bind_data: BindData
-) -> Dict[str, str]:
-    data["nickname"] = bind_data.get_by_steam_id(parent_id, data["steamid"])["nickname"]
+    data: dict[str, str], parent_id: str, group_store: GroupStore
+) -> dict[str, str]:
+    bind_entry = group_store.get_bind_by_steam_id(parent_id, data["steamid"])
+    data["nickname"] = bind_entry.nickname if bind_entry else ""
     return data
 
 
 async def simplize_steam_player_data(
-    player: Player, proxy: str = None, avatar_dir: Path = None
-) -> Dict[str, str]:
+    player: Player, proxy: str | None = None, avatar_dir: Path | None = None
+) -> dict[str, Any]:
     avatar = await fetch_avatar(player, avatar_dir, proxy)
 
     if player["personastate"] == 0:
         if not player.get("lastlogoff"):
             status = "离线"
         else:
-            time_logged_off = player["lastlogoff"]  # Unix timestamp
+            time_logged_off = player.get("lastlogoff", 0)  # Unix timestamp
             time_to_now = calendar.timegm(time.gmtime()) - time_logged_off
 
             # 将时间转换为自然语言
@@ -74,11 +78,15 @@ async def simplize_steam_player_data(
                 status = f"上次在线 {time_to_now // 31536000} 年前"
     elif player["personastate"] in [1, 2, 4]:
         status = (
-            "在线" if player.get("gameextrainfo") is None else player["gameextrainfo"]
+            "在线"
+            if player.get("gameextrainfo") is None
+            else player.get("gameextrainfo", "在线")
         )
     elif player["personastate"] == 3:
         status = (
-            "离开" if player.get("gameextrainfo") is None else player["gameextrainfo"]
+            "离开"
+            if player.get("gameextrainfo") is None
+            else player.get("gameextrainfo", "离开")
         )
     elif player["personastate"] in [5, 6]:
         status = "在线"

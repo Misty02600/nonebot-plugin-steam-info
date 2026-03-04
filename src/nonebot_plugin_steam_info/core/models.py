@@ -1,4 +1,7 @@
-from typing import TypedDict, List
+from __future__ import annotations
+
+from typing import TypedDict
+from typing_extensions import NotRequired
 
 
 class Player(TypedDict):
@@ -11,18 +14,18 @@ class Player(TypedDict):
     avatarmedium: str
     avatarfull: str
     avatarhash: str
-    lastlogoff: int
+    lastlogoff: NotRequired[int]
     personastate: int
     realname: str
     primaryclanid: str
     timecreated: int
     personastateflags: int
-    # gameextrainfo: str
-    # gameid: str
+    gameextrainfo: NotRequired[str]
+    gameid: NotRequired[str]
 
 
 class PlayerSummariesResponse(TypedDict):
-    players: List[Player]
+    players: list[Player]
 
 
 class PlayerSummaries(TypedDict):
@@ -30,11 +33,11 @@ class PlayerSummaries(TypedDict):
 
 
 class ProcessedPlayer(Player):
-    game_start_time: int  # Unix timestamp
+    game_start_time: NotRequired[int | None]  # Unix timestamp or None
 
 
 class PlayerSummariesProcessedResponse(TypedDict):
-    players: List[ProcessedPlayer]
+    players: list[ProcessedPlayer]
 
 
 class Achievements(TypedDict):
@@ -47,7 +50,7 @@ class GameData(TypedDict):
     play_time: str  # e.g. 10.2
     last_played: str  # e.g. 10 月 2 日
     game_image: bytes
-    achievements: List[Achievements]
+    achievements: list[Achievements]
     completed_achievement_number: int
     total_achievement_number: int
 
@@ -59,7 +62,7 @@ class PlayerData(TypedDict):
     avatar: bytes
     description: str
     recent_2_week_play_time: str
-    game_data: List[GameData]
+    game_data: list[GameData]
 
 
 class DrawPlayerStatusData(TypedDict):
@@ -67,16 +70,16 @@ class DrawPlayerStatusData(TypedDict):
     game_time: str  # e.g. 10.2 小时（过去 2 周）
     last_play_time: str  # e.g. 10 月 2 日
     game_header: bytes
-    achievements: List[Achievements]
+    achievements: list[Achievements]
     completed_achievement_number: int
     total_achievement_number: int
 
 
 __all__ = [
+    "DrawPlayerStatusData",
     "Player",
     "PlayerSummaries",
+    "PlayerSummariesProcessedResponse",
     "PlayerSummariesResponse",
     "ProcessedPlayer",
-    "PlayerSummariesProcessedResponse",
-    "DrawPlayerStatusData",
 ]

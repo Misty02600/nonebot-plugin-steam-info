@@ -1,32 +1,34 @@
-import numpy as np
+from __future__ import annotations
+
+from colorsys import hsv_to_rgb, rgb_to_hsv
 from io import BytesIO
 from pathlib import Path
-from typing import List, Dict, Tuple
-from colorsys import rgb_to_hsv, hsv_to_rgb
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from typing import Any, cast
 
+import numpy as np
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+
+from ..core.models import Achievements, DrawPlayerStatusData
 from .utils import hex_to_rgb
-from .models import DrawPlayerStatusData, Achievements
-
 
 WIDTH = 400
 PARENT_AVATAR_SIZE = 72
 MEMBER_AVATAR_SIZE = 50
 
-unknown_avatar_path = Path(__file__).parent / "res/unknown_avatar.jpg"
-parent_status_path = Path(__file__).parent / "res/parent_status.png"
-friends_search_path = Path(__file__).parent / "res/friends_search.png"
-busy_path = Path(__file__).parent / "res/busy.png"
-zzz_online_path = Path(__file__).parent / "res/zzz_online.png"
-zzz_gaming_path = Path(__file__).parent / "res/zzz_gaming.png"
-gaming_path = Path(__file__).parent / "res/gaming.png"
+unknown_avatar_path = Path(__file__).parent.parent / "res/unknown_avatar.jpg"
+parent_status_path = Path(__file__).parent.parent / "res/parent_status.png"
+friends_search_path = Path(__file__).parent.parent / "res/friends_search.png"
+busy_path = Path(__file__).parent.parent / "res/busy.png"
+zzz_online_path = Path(__file__).parent.parent / "res/zzz_online.png"
+zzz_gaming_path = Path(__file__).parent.parent / "res/zzz_gaming.png"
+gaming_path = Path(__file__).parent.parent / "res/gaming.png"
 
-font_regular_path = None
-font_light_path = None
-font_bold_path = None
+font_regular_path: str | None = None
+font_light_path: str | None = None
+font_bold_path: str | None = None
 
 
-def set_font_paths(regular_path, light_path, bold_path):
+def set_font_paths(regular_path: str, light_path: str, bold_path: str) -> None:
     global font_regular_path, font_light_path, font_bold_path
     base_dir = Path().cwd()
     font_regular_path = str((base_dir / regular_path).resolve())
@@ -34,13 +36,36 @@ def set_font_paths(regular_path, light_path, bold_path):
     font_bold_path = str((base_dir / bold_path).resolve())
 
 
-def check_font():
-    if not Path(font_regular_path).exists():
-        raise FileNotFoundError(f"Font file {font_regular_path} not found.")
-    if not Path(font_light_path).exists():
-        raise FileNotFoundError(f"Font file {font_light_path} not found.")
-    if not Path(font_bold_path).exists():
-        raise FileNotFoundError(f"Font file {font_bold_path} not found.")
+def _get_font_path(path: str | None, name: str) -> str:
+    if path is None:
+        raise RuntimeError(
+            f"Font path for {name} not set. Call set_font_paths() first."
+        )
+    return path
+
+
+def font_regular(size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(_get_font_path(font_regular_path, "regular"), size)
+
+
+def font_light(size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(_get_font_path(font_light_path, "light"), size)
+
+
+def font_bold(size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(_get_font_path(font_bold_path, "bold"), size)
+
+
+def check_font() -> None:
+    rp = _get_font_path(font_regular_path, "regular")
+    lp = _get_font_path(font_light_path, "light")
+    bp = _get_font_path(font_bold_path, "bold")
+    if not Path(rp).exists():
+        raise FileNotFoundError(f"Font file {rp} not found.")
+    if not Path(lp).exists():
+        raise FileNotFoundError(f"Font file {lp} not found.")
+    if not Path(bp).exists():
+        raise FileNotFoundError(f"Font file {bp} not found.")
 
 
 personastate_colors = {
@@ -54,8 +79,8 @@ personastate_colors = {
 }
 
 
-def vertically_concatenate_images(images: List[Image.Image]) -> Image.Image:
-    widths, heights = zip(*(i.size for i in images))
+def vertically_concatenate_images(images: list[Image.Image]) -> Image.Image:
+    widths, heights = zip(*(i.size for i in images), strict=True)
     total_width = max(widths)
     total_height = sum(heights)
 
@@ -70,17 +95,17 @@ def vertically_concatenate_images(images: List[Image.Image]) -> Image.Image:
 
 
 def draw_start_gaming(
-    avatar: Image.Image, friend_name: str, game_name: str, nickname: str = None
+    avatar: Image.Image, friend_name: str, game_name: str, nickname: str | None = None
 ):
     canvas = Image.open(gaming_path)
-    canvas.paste(avatar.resize((66, 66), Image.BICUBIC), (15, 20))
+    canvas.paste(avatar.resize((66, 66), Image.Resampling.BICUBIC), (15, 20))
 
     # 绘制名称
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (104, 14),
         f"{friend_name} ({nickname})" if nickname is not None else friend_name,
-        font=ImageFont.truetype(font_regular_path, 19),
+        font=font_regular(19),
         fill=hex_to_rgb("e3ffc2"),
     )
 
@@ -88,7 +113,7 @@ def draw_start_gaming(
     draw.text(
         (103, 42),
         "正在玩",
-        font=ImageFont.truetype(font_regular_path, 17),
+        font=font_regular(17),
         fill=hex_to_rgb("969696"),
     )
 
@@ -96,7 +121,7 @@ def draw_start_gaming(
     draw.text(
         (104, 66),
         game_name,
-        font=ImageFont.truetype(font_bold_path, 14),
+        font=font_bold(14),
         fill=hex_to_rgb("91c257"),
     )
 
@@ -105,10 +130,12 @@ def draw_start_gaming(
 
 def draw_parent_status(parent_avatar: Image.Image, parent_name: str) -> Image.Image:
     parent_avatar = parent_avatar.resize(
-        (PARENT_AVATAR_SIZE, PARENT_AVATAR_SIZE), Image.BICUBIC
+        (PARENT_AVATAR_SIZE, PARENT_AVATAR_SIZE), Image.Resampling.BICUBIC
     )
 
-    canvas = Image.open(parent_status_path).resize((WIDTH, 120), Image.BICUBIC)
+    canvas = Image.open(parent_status_path).resize(
+        (WIDTH, 120), Image.Resampling.BICUBIC
+    )
 
     draw = ImageDraw.Draw(canvas)
 
@@ -120,7 +147,7 @@ def draw_parent_status(parent_avatar: Image.Image, parent_name: str) -> Image.Im
     draw.text(
         (16 + PARENT_AVATAR_SIZE + 16, avatar_height + 12),
         parent_name,
-        font=ImageFont.truetype(font_bold_path, 20),
+        font=font_bold(20),
         fill=hex_to_rgb("6dcff6"),
     )
 
@@ -128,7 +155,7 @@ def draw_parent_status(parent_avatar: Image.Image, parent_name: str) -> Image.Im
     draw.text(
         (16 + PARENT_AVATAR_SIZE + 16, avatar_height + 20 + 16),
         "在线",
-        font=ImageFont.truetype(font_light_path, 18),
+        font=font_light(18),
         fill=hex_to_rgb("4c91ac"),
     )
 
@@ -148,7 +175,7 @@ def draw_friends_search() -> Image.Image:
         (24, 10),
         "好友",
         hex_to_rgb("b7ccd5"),
-        font=ImageFont.truetype(font_regular_path, 20),
+        font=font_regular(20),
     )
 
     return canvas
@@ -159,10 +186,10 @@ def draw_friend_status(
     friend_name: str,
     status: str,
     personastate: int,
-    nickname: str = None,
+    nickname: str | None = None,
 ) -> Image.Image:
     friend_avatar = friend_avatar.resize(
-        (MEMBER_AVATAR_SIZE, MEMBER_AVATAR_SIZE), Image.BICUBIC
+        (MEMBER_AVATAR_SIZE, MEMBER_AVATAR_SIZE), Image.Resampling.BICUBIC
     )
 
     canvas = Image.new("RGB", (WIDTH, 64), hex_to_rgb("1e2024"))
@@ -180,9 +207,7 @@ def draw_friend_status(
 
         busy = Image.open(busy_path)
 
-        name_width = int(
-            draw.textlength(display_name, font=ImageFont.truetype(font_bold_path, 20))
-        )
+        name_width = int(draw.textlength(display_name, font=font_bold(20)))
 
         canvas.paste(busy, (22 + MEMBER_AVATAR_SIZE + 16 + name_width + 4, 18))
 
@@ -195,9 +220,7 @@ def draw_friend_status(
 
         zzz = Image.open(zzz_online_path if status == "在线" else zzz_gaming_path)
 
-        name_width = int(
-            draw.textlength(display_name, font=ImageFont.truetype(font_bold_path, 20))
-        )
+        name_width = int(draw.textlength(display_name, font=font_bold(20)))
 
         canvas.paste(zzz, (22 + MEMBER_AVATAR_SIZE + 16 + name_width + 8, 18))
 
@@ -217,7 +240,7 @@ def draw_friend_status(
     draw.text(
         (22 + MEMBER_AVATAR_SIZE + 18, 12),
         display_name,
-        font=ImageFont.truetype(font_bold_path, 20),
+        font=font_bold(20),
         fill=fill[0],
     )
 
@@ -225,14 +248,14 @@ def draw_friend_status(
     draw.text(
         (22 + MEMBER_AVATAR_SIZE + 16, 36),
         status,
-        font=ImageFont.truetype(font_regular_path, 18),
+        font=font_regular(18),
         fill=fill[1],
     )
 
     return canvas
 
 
-def draw_gaming_friends_status(data: List[Dict[str, str]]) -> Image.Image:
+def draw_gaming_friends_status(data: list[dict[str, Any]]) -> Image.Image:
     # 排序数据，按照游戏名称字母表顺序排序
     data.sort(key=lambda x: x["status"])
 
@@ -249,7 +272,7 @@ def draw_gaming_friends_status(data: List[Dict[str, str]]) -> Image.Image:
         (22, 22),
         "游戏中",
         hex_to_rgb("c5d6d4"),
-        font=ImageFont.truetype(font_regular_path, 22),
+        font=font_regular(22),
     )
 
     # 绘制好友头像和名称
@@ -267,7 +290,7 @@ def draw_gaming_friends_status(data: List[Dict[str, str]]) -> Image.Image:
     return canvas
 
 
-def draw_online_friends_status(data: List[Dict[str, str]]) -> Image.Image:
+def draw_online_friends_status(data: list[dict[str, Any]]) -> Image.Image:
     canvas = Image.new(
         "RGB",
         (WIDTH, 64 + (MEMBER_AVATAR_SIZE + 16) * len(data) + 16),
@@ -281,7 +304,7 @@ def draw_online_friends_status(data: List[Dict[str, str]]) -> Image.Image:
         (22, 22),
         "在线好友",
         hex_to_rgb("c5d6d4"),
-        font=ImageFont.truetype(font_regular_path, 22),
+        font=font_regular(22),
     )
 
     # 绘制在线人数
@@ -289,7 +312,7 @@ def draw_online_friends_status(data: List[Dict[str, str]]) -> Image.Image:
         (115, 25),
         f"({len(data)})",
         hex_to_rgb("67665c"),
-        font=ImageFont.truetype(font_regular_path, 18),
+        font=font_regular(18),
     )
 
     # 绘制好友头像和名称
@@ -307,7 +330,7 @@ def draw_online_friends_status(data: List[Dict[str, str]]) -> Image.Image:
     return canvas
 
 
-def draw_offline_friends_status(data: List[Dict[str, str]]) -> Image.Image:
+def draw_offline_friends_status(data: list[dict[str, Any]]) -> Image.Image:
     canvas = Image.new(
         "RGB",
         (WIDTH, 64 + (MEMBER_AVATAR_SIZE + 16) * len(data) + 16),
@@ -321,7 +344,7 @@ def draw_offline_friends_status(data: List[Dict[str, str]]) -> Image.Image:
         (22, 22),
         "离线",
         hex_to_rgb("c5d6d4"),
-        font=ImageFont.truetype(font_regular_path, 22),
+        font=font_regular(22),
     )
 
     # 绘制离线人数
@@ -329,7 +352,7 @@ def draw_offline_friends_status(data: List[Dict[str, str]]) -> Image.Image:
         (72, 25),
         f"({len(data)})",
         hex_to_rgb("67665c"),
-        font=ImageFont.truetype(font_regular_path, 18),
+        font=font_regular(18),
     )
 
     # 绘制好友头像和名称
@@ -348,14 +371,14 @@ def draw_offline_friends_status(data: List[Dict[str, str]]) -> Image.Image:
 
 
 def draw_friends_status(
-    parent_avatar: Image.Image, parent_name: str, data: List[Dict[str, str]]
+    parent_avatar: Image.Image, parent_name: str, data: list[dict[str, Any]]
 ):
     data.sort(key=lambda x: x["personastate"])
 
     parent_status = draw_parent_status(parent_avatar, parent_name)
     friends_search = draw_friends_search()
 
-    status_images: List[Image.Image] = []
+    status_images: list[Image.Image] = []
     height = parent_status.height + friends_search.height
 
     gaming_data = [
@@ -414,7 +437,8 @@ def get_average_color(image: Image.Image) -> tuple[int, int, int]:
     """获取图片的平均颜色"""
     image_np = np.array(image)
     average_color = image_np.mean(axis=(0, 1)).astype(int)
-    return tuple(average_color)
+    r, g, b = int(average_color[0]), int(average_color[1]), int(average_color[2])
+    return (r, g, b)
 
 
 def split_image(
@@ -472,14 +496,16 @@ def recolor_image(image: Image.Image, rows: int, cols: int) -> Image.Image:
 
 
 def create_gradient_image(
-    size: Tuple[int, int], color1: Tuple[int, int, int], color2: Tuple[int, int, int]
+    size: tuple[int, int],
+    color1: tuple[int, ...],
+    color2: tuple[int, ...],
 ) -> Image.Image:
     """创建渐变图片"""
     # 确保颜色值在 0-255 范围内
-    color1 = tuple(max(0, min(255, c)) for c in color1)
-    color2 = tuple(max(0, min(255, c)) for c in color2)
+    c1 = tuple(max(0, min(255, c)) for c in color1)
+    c2 = tuple(max(0, min(255, c)) for c in color2)
     # 创建一个渐变的线性空间
-    gradient_array = np.linspace(color1, color2, size[0])
+    gradient_array = np.linspace(c1, c2, size[0])
 
     # 将渐变数组的形状调整为 (height, width, 3)
     gradient_image = np.tile(gradient_array, (size[1], 1, 1)).astype(np.uint8)
@@ -515,9 +541,7 @@ def create_vertical_gradient_rect(width, height, start_color, end_color):
     return image
 
 
-def random_color_offset(
-    color: Tuple[int, int, int], offset: int
-) -> Tuple[int, int, int]:
+def random_color_offset(color: tuple[int, ...], offset: int) -> tuple[int, ...]:
     return tuple(
         min(255, max(0, c + np.random.randint(-offset, offset + 1))) for c in color
     )
@@ -527,12 +551,12 @@ def get_brightest_and_darkest_color(
     image: Image.Image,
     saturation_threshold: int = 100,
     hue_difference_threshold: int = 30,
-) -> Tuple[Tuple[int, int, int], Tuple[int, int, int]]:
+) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """获取图片最亮和最暗的颜色"""
     # 将RGB图像转换为HSV
     img_hsv = np.array(image.convert("HSV"))
 
-    # 设定一个阈值来定义“鲜艳的颜色”，例如饱和度大于150
+    # 设定一个阈值来定义"鲜艳的颜色"，例如饱和度大于150
     vivid_mask = img_hsv[..., 1] > saturation_threshold
 
     # 获取饱和度较高（鲜艳）的像素索引
@@ -558,17 +582,20 @@ def get_brightest_and_darkest_color(
 
     # 将最亮和最暗的像素从HSV转回RGB
     brightest_color = (
-        Image.fromarray(np.uint8([[brightest_pixel]]), "HSV")
+        Image.fromarray(np.uint8([[brightest_pixel]]), "HSV")  # type: ignore[arg-type]
         .convert("RGB")
         .getpixel((0, 0))
     )
     darkest_color = (
-        Image.fromarray(np.uint8([[darkest_pixel]]), "HSV")
+        Image.fromarray(np.uint8([[darkest_pixel]]), "HSV")  # type: ignore[arg-type]
         .convert("RGB")
         .getpixel((0, 0))
     )
 
-    return brightest_color, darkest_color
+    return cast(
+        tuple[tuple[int, int, int], tuple[int, int, int]],
+        (brightest_color, darkest_color),
+    )
 
 
 def draw_game_info(
@@ -576,13 +603,13 @@ def draw_game_info(
     game_name: str,
     game_time: str,
     last_play_time: str,
-    achievements: List[Achievements],
+    achievements: list[Achievements],
     completed_achievement_number: int,
     total_achievement_number: int,
-    achievement_color: Tuple[int, int, int],
+    achievement_color: tuple[int, int, int],
 ) -> Image.Image:
     bg = Image.new("RGBA", (880, 110 + 64 + 10), (0, 0, 0, 110))
-    header = header.resize((229, 86), Image.BICUBIC)
+    header = header.resize((229, 86), Image.Resampling.BICUBIC)
     bg.paste(header, (10, 110 // 2 - header.height // 2))
 
     draw = ImageDraw.Draw(bg)
@@ -591,12 +618,12 @@ def draw_game_info(
     draw.text(
         (260, 10),
         game_name,
-        font=ImageFont.truetype(font_regular_path, 26),
+        font=font_regular(26),
         fill=(255, 255, 255),
     )
 
     # 画最后游玩时间
-    font = ImageFont.truetype(font_light_path, 22)
+    font = font_light(22)
     display_text = last_play_time
     draw.text(
         (int(bg.width - font.getlength(display_text)) - 10, 75),
@@ -606,7 +633,7 @@ def draw_game_info(
     )
 
     # 画游戏时间
-    font = ImageFont.truetype(font_light_path, 22)
+    font = font_light(22)
     display_text = f"总时数 {game_time}"
     draw.text(
         (int(bg.width - font.getlength(display_text)) - 10, 50),
@@ -623,7 +650,7 @@ def draw_game_info(
     draw_achievement = ImageDraw.Draw(achievement_bg)
 
     # 画成就进度
-    font = ImageFont.truetype(font_light_path, 18)
+    font = font_light(18)
     x = 14
     draw_achievement.text(
         (x, 20),
@@ -655,7 +682,7 @@ def draw_game_info(
         x += 48 + 10
 
     if completed_achievement_number > 6:
-        font = ImageFont.truetype(font_regular_path, 22)
+        font = font_regular(22)
         display_text = f"+{completed_achievement_number - 5}"
         draw_achievement.rectangle((x, 8, x + 48, 56), fill=(34, 34, 34))
         draw_achievement.text(
@@ -676,7 +703,7 @@ def draw_player_status(
     player_id: str,
     player_description: str,
     player_last_two_weeks_time: str,  # e.g. 10.2 小时
-    player_games: List[DrawPlayerStatusData],
+    player_games: list[DrawPlayerStatusData],
 ):
     if isinstance(player_bg, bytes):
         player_bg = Image.open(BytesIO(player_bg))
@@ -711,7 +738,7 @@ def draw_player_status(
     draw.text(
         (280, 48),
         player_name,
-        font=ImageFont.truetype(font_light_path, 40),
+        font=font_light(40),
         fill=(255, 255, 255),
     )
 
@@ -719,7 +746,7 @@ def draw_player_status(
     draw.text(
         (280, 100),
         f"好友代码: {player_id}",
-        font=ImageFont.truetype(font_regular_path, 19),
+        font=font_regular(19),
         fill=(191, 191, 191),
     )
 
@@ -729,12 +756,12 @@ def draw_player_status(
     line = ""
     for idx, char in enumerate(player_description):
         line += char
-        line_width += ImageFont.truetype(font_light_path, 22).getlength(char)
+        line_width += font_light(22).getlength(char)
         if line_width > 640 or idx == len(player_description) - 1 or char == "\n":
             draw.text(
                 (280, 132 + offset),
                 line,
-                font=ImageFont.truetype(font_light_path, 22),
+                font=font_light(22),
                 fill=(255, 255, 255),
             )
             line = ""
@@ -745,30 +772,22 @@ def draw_player_status(
 
     # 画游戏
 
-    brightest_color, darkest_color = get_brightest_and_darkest_color(player_bg)
-    brightest_color = tuple(map(lambda x: x - 30 if x >= 30 else 0, brightest_color))
-    darkest_color = tuple(
-        map(lambda x: x + 30 if x <= 255 - 30 else 255, darkest_color)
-    )
-    brightest_color = (brightest_color[0], brightest_color[1], brightest_color[2], 128)
-    brightest_color = random_color_offset(brightest_color, 20)
-    darkest_color = (darkest_color[0], darkest_color[1], darkest_color[2], 128)
-    darkest_color = random_color_offset(darkest_color, 20)
+    bright_rgb, dark_rgb = get_brightest_and_darkest_color(player_bg)
+    bright_adj = tuple(x - 30 if x >= 30 else 0 for x in bright_rgb)
+    dark_adj = tuple(x + 30 if x <= 255 - 30 else 255 for x in dark_rgb)
+    brightest_color = random_color_offset((*bright_adj, 128), 20)
+    darkest_color = random_color_offset((*dark_adj, 128), 20)
 
     # 画游戏信息
     hsv_achievement_color = rgb_to_hsv(*brightest_color[:3])
-    achievement_color = tuple(
-        map(
-            int,
-            hsv_to_rgb(
-                hsv_achievement_color[0],
-                hsv_achievement_color[1] * 0.85,
-                hsv_achievement_color[2] * 0.6,
-            ),
-        )
+    ach_r, ach_g, ach_b = hsv_to_rgb(
+        hsv_achievement_color[0],
+        hsv_achievement_color[1] * 0.85,
+        hsv_achievement_color[2] * 0.6,
     )
-    game_images: List[Image.Image] = []
-    for idx, game in enumerate(player_games):
+    achievement_color: tuple[int, int, int] = (int(ach_r), int(ach_g), int(ach_b))
+    game_images: list[Image.Image] = []
+    for _idx, game in enumerate(player_games):
         game_image = Image.open(BytesIO(game["game_header"]))
         game_info = draw_game_info(
             game_image,
@@ -806,22 +825,20 @@ def draw_player_status(
     draw.text(
         (34, 279),
         "最新动态",
-        font=ImageFont.truetype(font_light_path, 26),
+        font=font_light(26),
         fill=(255, 255, 255),
     )
     if player_last_two_weeks_time is not None:
-        width = ImageFont.truetype(font_light_path, 26).getlength(
-            player_last_two_weeks_time
-        )
+        width = font_light(26).getlength(player_last_two_weeks_time)
         draw.text(
             (960 - width - 34, 279),
             player_last_two_weeks_time,
-            font=ImageFont.truetype(font_light_path, 26),
+            font=font_light(26),
             fill=(255, 255, 255),
         )
 
     y = 350
-    for idx, game_image in enumerate(game_images):
+    for _idx, game_image in enumerate(game_images):
         bg.paste(
             game_image,
             ((920 - game_image.width) // 2 + 20, y),
@@ -885,7 +902,7 @@ def rounded_rectangle(
 
 
 def create_progress_bar(
-    progress: float, color: Tuple[int, int, int], width=186, height=16
+    progress: float, color: tuple[int, int, int], width=186, height=16
 ):
     color_hsv = rgb_to_hsv(*color)
 
@@ -893,7 +910,7 @@ def create_progress_bar(
     bar_color = tuple(
         map(int, hsv_to_rgb(color_hsv[0], color_hsv[1], color_hsv[2] * 0.8))
     )
-    border_color = tuple(map(lambda x: max(x - 20, 0), color))
+    border_color = tuple(max(x - 20, 0) for x in color)
     border_image = rounded_rectangle(
         Image.new("RGBA", (width, height), bar_color),
         8,

@@ -2,9 +2,7 @@
 name = "nonebot-plugin-steam-info"
 version = "1.3.5"
 description = "Steam 好友状态播报 NoneBot 插件"
-authors = [
-    {name = "zhaomaoniu", email = "2667292003@qq.com"},
-]
+authors = [{ name = "zhaomaoniu", email = "2667292003@qq.com" }]
 dependencies = [
     "nonebot2>=2.2.0",
     "nonebot-plugin-alconna>=0.54.2",
@@ -15,15 +13,123 @@ dependencies = [
     "numpy>=1.24.4",
     "beautifulsoup4>=4.12.3",
     "pytz>=2024.2",
+    "msgspec>=0.18.0",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
+
+[project.urls]
+Homepage = "https://github.com/zhaomaoniu/nonebot-plugin-steam-info"
+Issues = "https://github.com/zhaomaoniu/nonebot-plugin-steam-info/issues"
+Repository = "https://github.com/zhaomaoniu/nonebot-plugin-steam-info.git"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.16.0",
+    "commitizen>=4.1.0",
+    "git-cliff>=2.11.0,<3.0.0",
+    "prek>=0.2.0",
+    "ruff>=0.14.13,<1.0.0",
+    { include-group = "test" },
+]
+test = [
+    "nonebot-adapter-onebot>=2.4.6,<3.0.0",
+    "nonebot2[fastapi]>=2.4.4,<3.0.0",
+    "nonebug>=0.4.3,<1.0.0",
+    "pytest-asyncio>=1.3.0,<1.4.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0,<4.0.0",
+]
 
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
-
 [tool.pdm]
 distribution = true
+
+[tool.pdm.build]
+package-dir = "src"
+
+[tool.nonebot.plugins]
+nonebot-plugin-steam-info = ["nonebot_plugin_steam_info"]
+
+[tool.nonebot.adapters]
+nonebot-adapter-onebot = [
+    { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.3.5"
+tag_format = "v$version"
+version_files = ["pyproject.toml:^version"]
+major_version_zero = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "except ImportError:",
+]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportPrivateUsage = "none"
+reportUnknownMemberType = "none"
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "--strict-markers", "--tb=short", "-ra"]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+extend-exclude = ["scripts"]
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "W",
+    "E",
+    "I",
+    "B",
+    "UP",
+    "ASYNC",
+    "C4",
+    "T10",
+    "T20",
+    "PYI",
+    "PT",
+    "Q",
+    "TID",
+    "RUF",
+]
+ignore = [
+    "E501",
+    "E402",
+    "UP037",
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "W191",
+    "TID252",
+    "B008",
+]
+
+[tool.ruff.lint.isort]
+extra-standard-library = ["typing_extensions"]
