@@ -32,6 +32,11 @@ class Config(BaseModel):
     steam_api_batch_delay: float = Field(default=1.5, description="分批请求间隔（秒）")
     steam_api_backoff_factor: float = Field(default=2.0, description="指数退避因子")
 
+    # 缓存相关配置
+    steam_cache_ttl: int = Field(
+        default=86400, description="图片缓存过期时间（秒），默认 24 小时"
+    )
+
     @field_validator("steam_api_key", mode="before")
     @classmethod
     def ensure_list(cls, v: str | list[str]) -> list[str]:

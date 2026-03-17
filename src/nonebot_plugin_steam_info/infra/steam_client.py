@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -34,12 +35,16 @@ class SteamAPIClient:
         max_retries: int = 3,
         batch_delay: float = 1.5,
         backoff_factor: float = 2.0,
+        cache_ttl: int = 86400,
     ) -> None:
         self._api_keys = api_keys
         self._proxy = proxy
         self._max_retries = max_retries
         self._batch_delay = batch_delay
         self._backoff_factor = backoff_factor
+        self._cache_ttl = cache_ttl  # 缓存过期时间（秒），默认 24 小时
+        # 存储 steamid -> avatar_url 的映射，用于检测头像是否变化
+        self._avatar_url_cache: dict[int, str] = {}
 
     async def get_users_info(self, steam_ids: list[str]) -> PlayerSummaries:
         """获取多个用户信息（自动分批 + 重试 + key 轮换）"""
@@ -152,8 +157,18 @@ class SteamAPIClient:
         # background
         background_url = re.search(r"background-image: url\( \'(.*?)\' \)", html)
         if background_url:
+            bg_url = background_url.group(1)
+            bg_split = bg_url.split("/")
+            bg_file = (
+                cache_path / f"background_{bg_split[-1].split('_')[0]}.jpg"
+                if cache_path
+                else None
+            )
             result["background"] = await self._fetch(
-                background_url.group(1), default_background
+                bg_url,
+                default_background,
+                cache_file=bg_file,
+                cache_ttl=self._cache_ttl,
             )
 
         # avatar
@@ -166,8 +181,20 @@ class SteamAPIClient:
                 if cache_path
                 else None
             )
+            # 检查头像 URL 是否变化，如果变化则删除旧缓存
+            if (
+                steam_id in self._avatar_url_cache
+                and self._avatar_url_cache[steam_id] != av_url
+            ):
+                if avatar_file and avatar_file.exists():
+                    avatar_file.unlink()
+                    logger.debug(f"删除过期的头像缓存: {avatar_file}")
+            self._avatar_url_cache[steam_id] = av_url
             result["avatar"] = await self._fetch(
-                av_url, default_avatar, cache_file=avatar_file
+                av_url,
+                default_avatar,
+                cache_file=avatar_file,
+                cache_ttl=self._cache_ttl,
             )
 
         # recent 2 week play time
@@ -199,6 +226,7 @@ class SteamAPIClient:
                 cache_file=cache_path / f"header_{game_info_split[-2]}.jpg"
                 if cache_path
                 else None,
+                cache_ttl=self._cache_ttl,
             )
 
             game_info_details_el = game.find("div", class_="game_info_details")
@@ -237,6 +265,7 @@ class SteamAPIClient:
                     / f"achievement_{ach_split[-2]}_{ach_split[-1]}"
                     if cache_path
                     else None,
+                    cache_ttl=self._cache_ttl,
                 )
                 achievements.append(achievement_info)
             game_info["achievements"] = achievements
@@ -362,11 +391,35 @@ class SteamAPIClient:
         url: str,
         default: bytes,
         cache_file: Path | None = None,
+        cache_ttl: int | None = None,
     ) -> bytes:
+        """获取远程资源，支持 TTL 缓存清理。
+
+        Args:
+            url: 资源 URL
+            default: 获取失败时的默认值
+            cache_file: 缓存文件路径
+            cache_ttl: 缓存过期时间（秒），为 None 时不检查 TTL
+        """
         if cache_file is not None:
             apath = anyio.Path(cache_file)
             if await apath.exists():
-                return await apath.read_bytes()
+                # 检查缓存是否过期
+                if cache_ttl is not None:
+                    try:
+                        stat = await apath.stat()
+                        age = time.time() - stat.st_mtime
+                        if age < cache_ttl:
+                            return await apath.read_bytes()
+                        # 缓存已过期，删除它
+                        await apath.unlink()
+                        logger.debug(f"缓存已过期，删除: {cache_file}")
+                    except (OSError, ValueError) as e:
+                        logger.warning(f"检查缓存失败: {e}")
+                else:
+                    # 不检查 TTL，直接返回
+                    return await apath.read_bytes()
+
         try:
             async with httpx.AsyncClient(proxy=self._proxy) as client:
                 response = await client.get(url)
@@ -393,6 +446,47 @@ class SteamAPIClient:
 
         return steam_id_or_steam_friends_code
 
+    async def clear_cache(self, cache_path: Path, steam_id: int | None = None) -> int:
+        """清除缓存文件。
+
+        Args:
+            cache_path: 缓存目录路径
+            steam_id: 清除特定用户的缓存，为 None 时清除所有
+
+        Returns:
+            清除的文件数
+        """
+        apath = anyio.Path(cache_path)
+        if not await apath.exists():
+            return 0
+
+        count = 0
+
+        try:
+            async for entry in apath.iterdir():
+                if steam_id is not None:
+                    # 只清除特定用户的缓存
+                    if entry.name.startswith(
+                        f"avatar_{steam_id}"
+                    ) or entry.name.startswith(f"background_{steam_id}"):
+                        await entry.unlink()
+                        count += 1
+                        logger.debug(f"删除缓存: {entry.name}")
+                else:
+                    # 清除所有缓存
+                    await entry.unlink()
+                    count += 1
+                    logger.debug(f"删除缓存: {entry.name}")
+        except Exception as exc:
+            logger.error(f"清除缓存失败: {exc}")
+
+        return count
+
+    def reset_avatar_cache(self) -> None:
+        """重置头像 URL 缓存映射。用于测试或特殊需求。"""
+        self._avatar_url_cache.clear()
+        logger.debug("重置头像缓存映射")
+
     @staticmethod
     def _parse_retry_after(response: httpx.Response) -> float:
         """解析 Retry-After 响应头，返回等待秒数。"""
@@ -403,3 +497,34 @@ class SteamAPIClient:
             return max(float(retry_after), 1.0)
         except (ValueError, TypeError):
             return 60.0
+
+    def clear_avatar_cache(self, cache_path: Path, steam_id: int | None = None) -> None:
+        """清除头像缓存。
+
+        Args:
+            cache_path: 缓存目录路径
+            steam_id: 特定用户 ID，为 None 时清除所有头像缓存
+        """
+        if steam_id is not None:
+            # 清除特定用户的头像
+            steam_id_str = str(steam_id).split("_")[0]  # 获取 steam_id 哈希
+            pattern = f"avatar_{steam_id_str}*.jpg"
+            for f in cache_path.glob(pattern):
+                try:
+                    f.unlink()
+                    logger.info(f"删除头像缓存: {f}")
+                except OSError as e:
+                    logger.warning(f"删除缓存失败 {f}: {e}")
+            # 从映射中移除
+            if steam_id in self._avatar_url_cache:
+                del self._avatar_url_cache[steam_id]
+        else:
+            # 清除所有头像缓存
+            for f in cache_path.glob("avatar_*.jpg"):
+                try:
+                    f.unlink()
+                    logger.info(f"删除头像缓存: {f}")
+                except OSError as e:
+                    logger.warning(f"删除缓存失败 {f}: {e}")
+            self._avatar_url_cache.clear()
+            logger.info("已清除所有头像缓存")

@@ -10,7 +10,7 @@ class BindRecord(msgspec.Struct, omit_defaults=True):
 
     user_id: str
     steam_id: str
-    nickname: str = ""
+    nickname: str | None = None
 
 
 class GroupConfig(msgspec.Struct, omit_defaults=True):

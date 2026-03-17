@@ -48,6 +48,7 @@ client = SteamAPIClient(
     max_retries=config.steam_api_max_retries,
     batch_delay=config.steam_api_batch_delay,
     backoff_factor=config.steam_api_backoff_factor,
+    cache_ttl=config.steam_cache_ttl,
 )
 
 # Font check

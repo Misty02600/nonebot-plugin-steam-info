@@ -7,6 +7,7 @@
 from . import (
     bind,
     broadcast,
+    cache,
     check,
     help,
     info,
@@ -18,6 +19,7 @@ from . import (
 __all__ = [
     "bind",
     "broadcast",
+    "cache",
     "check",
     "help",
     "info",

@@ -47,7 +47,7 @@ def convert_player_name_to_nickname(
     data: dict[str, str], parent_id: str, group_store: GroupStore
 ) -> dict[str, str]:
     bind_entry = group_store.get_bind_by_steam_id(parent_id, data["steamid"])
-    data["nickname"] = bind_entry.nickname if bind_entry else ""
+    data["nickname"] = (bind_entry.nickname or "") if bind_entry else ""
     return data
 
 
