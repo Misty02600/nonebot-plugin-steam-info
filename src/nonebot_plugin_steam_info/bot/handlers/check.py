@@ -26,10 +26,19 @@ async def check_handle(
     parent_id = target.parent_id or target.id
 
     steam_ids = group_store.get_all_steam_ids(parent_id)
+    if steam_ids == []:
+        await check.finish("本群还没有绑定 Steam 账号，请先使用 steambind 进行绑定")
+        return
 
     steam_info = await client.get_users_info(steam_ids)
     if steam_info["response"]["players"] == []:
-        await check.finish("连接 Steam API 失败，请重试")
+        logger.warning(
+            f"steamcheck 获取到空 players，parent_id={parent_id}, steam_ids={steam_ids}"
+        )
+        await check.finish(
+            "连接 Steam API 失败，请稍后重试"
+        )
+        return
 
     logger.debug(f"{parent_id} Players info: {steam_info}")
 

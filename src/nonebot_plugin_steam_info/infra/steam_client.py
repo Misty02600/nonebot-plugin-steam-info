@@ -165,10 +165,7 @@ class SteamAPIClient:
                 else None
             )
             result["background"] = await self._fetch(
-                bg_url,
-                default_background,
-                cache_file=bg_file,
-                cache_ttl=self._cache_ttl,
+                bg_url, default_background, cache_file=bg_file, cache_ttl=self._cache_ttl
             )
 
         # avatar
@@ -182,19 +179,13 @@ class SteamAPIClient:
                 else None
             )
             # 检查头像 URL 是否变化，如果变化则删除旧缓存
-            if (
-                steam_id in self._avatar_url_cache
-                and self._avatar_url_cache[steam_id] != av_url
-            ):
+            if steam_id in self._avatar_url_cache and self._avatar_url_cache[steam_id] != av_url:
                 if avatar_file and avatar_file.exists():
                     avatar_file.unlink()
                     logger.debug(f"删除过期的头像缓存: {avatar_file}")
             self._avatar_url_cache[steam_id] = av_url
             result["avatar"] = await self._fetch(
-                av_url,
-                default_avatar,
-                cache_file=avatar_file,
-                cache_ttl=self._cache_ttl,
+                av_url, default_avatar, cache_file=avatar_file, cache_ttl=self._cache_ttl
             )
 
         # recent 2 week play time
@@ -446,7 +437,9 @@ class SteamAPIClient:
 
         return steam_id_or_steam_friends_code
 
-    async def clear_cache(self, cache_path: Path, steam_id: int | None = None) -> int:
+    async def clear_cache(
+        self, cache_path: Path, steam_id: int | None = None
+    ) -> int:
         """清除缓存文件。
 
         Args:
@@ -456,11 +449,11 @@ class SteamAPIClient:
         Returns:
             清除的文件数
         """
-        apath = anyio.Path(cache_path)
-        if not await apath.exists():
+        if not cache_path.exists():
             return 0
 
         count = 0
+        apath = anyio.Path(cache_path)
 
         try:
             async for entry in apath.iterdir():
@@ -507,7 +500,7 @@ class SteamAPIClient:
         """
         if steam_id is not None:
             # 清除特定用户的头像
-            steam_id_str = str(steam_id).split("_")[0]  # 获取 steam_id 哈希
+            steam_id_str = str(steam_id).split('_')[0]  # 获取 steam_id 哈希
             pattern = f"avatar_{steam_id_str}*.jpg"
             for f in cache_path.glob(pattern):
                 try:

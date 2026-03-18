@@ -99,6 +99,8 @@ async def broadcast_steam_info(
     if msg == []:
         return None
 
+    text_content = "\n".join(msg)
+
     if config.steam_broadcast_type == "all":
         steam_status_data = [
             convert_player_name_to_nickname(
@@ -111,7 +113,7 @@ async def broadcast_steam_info(
 
         parent_avatar, parent_name = group_store.get_info(parent_id)
         image = draw_friends_status(parent_avatar, parent_name, steam_status_data)
-        uni_msg = UniMessage([Text("\n".join(msg)), Image(raw=image_to_bytes(image))])
+        uni_msg = UniMessage([Text(text_content), Image(raw=image_to_bytes(image))])
     elif config.steam_broadcast_type == "part":
         images: list[PILImage.Image] = []
         for entry in play_data:
@@ -128,20 +130,17 @@ async def broadcast_steam_info(
                 )
                 images.append(img)
         if images == []:
-            uni_msg = UniMessage([Text("\n".join(msg))])
+            uni_msg = UniMessage([Text(text_content)])
         else:
             image = (
                 vertically_concatenate_images(images) if len(images) > 1 else images[0]
             )
-            uni_msg = UniMessage(
-                [Text("\n".join(msg)), Image(raw=image_to_bytes(image))]
-            )
+            uni_msg = UniMessage([Text(text_content), Image(raw=image_to_bytes(image))])
     elif config.steam_broadcast_type == "none":
-        uni_msg = UniMessage([Text("\n".join(msg))])
+        uni_msg = UniMessage([Text(text_content)])
     else:
         logger.error(f"未知的播报类型: {config.steam_broadcast_type}")
         return None
 
-    await uni_msg.send(
-        Target(parent_id, parent_id, True, False, "", bot.adapter.get_name()), bot
-    )
+    target = Target(parent_id, parent_id, True, False, "", bot.adapter.get_name())
+    await uni_msg.send(target, bot)

@@ -33,8 +33,10 @@ async def fetch_and_broadcast_steam_info():
     for parent_id in group_store.get_all_parent_ids():
         old_players = old_players_dict[parent_id]
         new_players = steam_state.get_players(group_store.get_all_steam_ids(parent_id))
-
-        await broadcast_steam_info(parent_id, old_players, new_players)
+        try:
+            await broadcast_steam_info(parent_id, old_players, new_players)
+        except Exception as exc:
+            logger.exception(f"群 {parent_id} Steam 播报失败: {exc}")
 
 
 if not config.steam_disable_broadcast_on_startup:
