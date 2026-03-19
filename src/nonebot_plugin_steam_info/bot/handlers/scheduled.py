@@ -9,14 +9,39 @@ from ..service import client, config, group_store, steam_state
 from .broadcast import broadcast_steam_info
 
 
+async def sync_enabled_groups():
+    try:
+        bot = nonebot.get_bot()
+    except ValueError:
+        return
+
+    try:
+        group_list = await bot.call_api("get_group_list")
+    except Exception as exc:
+        logger.debug(f"获取群列表失败，跳过 Steam 群同步: {exc}")
+        return
+
+    active_group_ids = {
+        str(group["group_id"])
+        for group in group_list
+        if isinstance(group, dict) and group.get("group_id") is not None
+    }
+
+    for parent_id in group_store.get_enabled_parent_ids():
+        if parent_id in active_group_ids:
+            continue
+        group_store.disable(parent_id)
+        logger.warning("群 %s 已不在当前 Bot 群列表中，自动禁用 Steam 播报", parent_id)
+
+
 async def update_steam_info():
-    steam_ids = group_store.get_all_steam_ids_global()
+    steam_ids = group_store.get_all_enabled_steam_ids_global()
 
     steam_info = await client.get_users_info(steam_ids)
 
     old_players_dict: dict[str, list[ProcessedPlayer]] = {}
 
-    for parent_id in group_store.get_all_parent_ids():
+    for parent_id in group_store.get_enabled_parent_ids():
         pid_steam_ids = group_store.get_all_steam_ids(parent_id)
         old_players_dict[parent_id] = steam_state.get_players(pid_steam_ids)
 
@@ -30,8 +55,9 @@ async def update_steam_info():
     "interval", minutes=config.steam_request_interval / 60, id="update_steam_info"
 )
 async def fetch_and_broadcast_steam_info():
+    await sync_enabled_groups()
     old_players_dict = await update_steam_info()
-    parent_ids = group_store.get_all_parent_ids()
+    parent_ids = group_store.get_enabled_parent_ids()
 
     for index, parent_id in enumerate(parent_ids):
         old_players = old_players_dict[parent_id]

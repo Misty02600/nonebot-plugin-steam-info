@@ -449,11 +449,11 @@ class SteamAPIClient:
         Returns:
             清除的文件数
         """
-        if not cache_path.exists():
+        apath = anyio.Path(cache_path)
+        if not await apath.exists():
             return 0
 
         count = 0
-        apath = anyio.Path(cache_path)
 
         try:
             async for entry in apath.iterdir():
@@ -500,7 +500,7 @@ class SteamAPIClient:
         """
         if steam_id is not None:
             # 清除特定用户的头像
-            steam_id_str = str(steam_id).split('_')[0]  # 获取 steam_id 哈希
+            steam_id_str = str(steam_id).split("_")[0]  # 获取 steam_id 哈希
             pattern = f"avatar_{steam_id_str}*.jpg"
             for f in cache_path.glob(pattern):
                 try:

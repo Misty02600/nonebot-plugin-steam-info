@@ -94,8 +94,25 @@ class GroupStore(JsonStore[GroupDataStore]):
             {r.steam_id for config in self.data.groups.values() for r in config.binds}
         )
 
+    def get_all_enabled_steam_ids_global(self) -> list[str]:
+        return list(
+            {
+                r.steam_id
+                for config in self.data.groups.values()
+                if not config.disabled
+                for r in config.binds
+            }
+        )
+
     def get_all_parent_ids(self) -> list[str]:
         return list(self.data.groups.keys())
+
+    def get_enabled_parent_ids(self) -> list[str]:
+        return [
+            parent_id
+            for parent_id, config in self.data.groups.items()
+            if not config.disabled
+        ]
 
     # endregion
 

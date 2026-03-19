@@ -5,9 +5,69 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_sync_enabled_groups_disables_missing_groups(monkeypatch):
+    from nonebot_plugin_steam_info.bot.handlers import scheduled
+
+    disable_mock = MagicMock()
+    monkeypatch.setattr(
+        scheduled,
+        "group_store",
+        SimpleNamespace(
+            get_enabled_parent_ids=lambda: ["1001", "1002"],
+            disable=disable_mock,
+        ),
+    )
+    monkeypatch.setattr(
+        scheduled.nonebot,
+        "get_bot",
+        lambda: SimpleNamespace(
+            call_api=AsyncMock(return_value=[{"group_id": 1001}, {"group_id": 1003}])
+        ),
+    )
+    logger_warning = MagicMock()
+    monkeypatch.setattr(scheduled.logger, "warning", logger_warning)
+
+    await scheduled.sync_enabled_groups()
+
+    disable_mock.assert_called_once_with("1002")
+    logger_warning.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_steam_info_only_reads_enabled_groups(monkeypatch):
+    from nonebot_plugin_steam_info.bot.handlers import scheduled
+
+    client_mock = SimpleNamespace(
+        get_users_info=AsyncMock(return_value={"response": {"players": []}})
+    )
+    steam_state = SimpleNamespace(
+        get_players=MagicMock(side_effect=lambda steam_ids: [{"steam_ids": steam_ids}]),
+        update_by_players=MagicMock(),
+    )
+    monkeypatch.setattr(scheduled, "client", client_mock)
+    monkeypatch.setattr(
+        scheduled,
+        "group_store",
+        SimpleNamespace(
+            get_all_enabled_steam_ids_global=lambda: ["steam-1", "steam-2"],
+            get_enabled_parent_ids=lambda: ["1001"],
+            get_all_steam_ids=lambda _parent_id: ["steam-1"],
+        ),
+    )
+    monkeypatch.setattr(scheduled, "steam_state", steam_state)
+
+    result = await scheduled.update_steam_info()
+
+    client_mock.get_users_info.assert_awaited_once_with(["steam-1", "steam-2"])
+    assert result == {"1001": [{"steam_ids": ["steam-1"]}]}
+    steam_state.update_by_players.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_fetch_and_broadcast_steam_info_isolates_group_errors(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
+    monkeypatch.setattr(scheduled, "sync_enabled_groups", AsyncMock())
     monkeypatch.setattr(
         scheduled, "update_steam_info", AsyncMock(return_value={"1001": [], "1002": []})
     )
@@ -15,7 +75,7 @@ async def test_fetch_and_broadcast_steam_info_isolates_group_errors(monkeypatch)
         scheduled,
         "group_store",
         SimpleNamespace(
-            get_all_parent_ids=lambda: ["1001", "1002"],
+            get_enabled_parent_ids=lambda: ["1001", "1002"],
             get_all_steam_ids=lambda _parent_id: [],
         ),
     )
@@ -42,6 +102,7 @@ async def test_fetch_and_broadcast_steam_info_isolates_group_errors(monkeypatch)
 async def test_fetch_and_broadcast_steam_info_waits_between_groups(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
+    monkeypatch.setattr(scheduled, "sync_enabled_groups", AsyncMock())
     monkeypatch.setattr(
         scheduled,
         "update_steam_info",
@@ -51,7 +112,7 @@ async def test_fetch_and_broadcast_steam_info_waits_between_groups(monkeypatch):
         scheduled,
         "group_store",
         SimpleNamespace(
-            get_all_parent_ids=lambda: ["1001", "1002", "1003"],
+            get_enabled_parent_ids=lambda: ["1001", "1002", "1003"],
             get_all_steam_ids=lambda _parent_id: [],
         ),
     )
