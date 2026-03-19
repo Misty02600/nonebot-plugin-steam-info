@@ -1,3 +1,5 @@
+import asyncio
+
 import nonebot
 from nonebot.log import logger
 from nonebot_plugin_apscheduler import scheduler
@@ -29,14 +31,23 @@ async def update_steam_info():
 )
 async def fetch_and_broadcast_steam_info():
     old_players_dict = await update_steam_info()
+    parent_ids = group_store.get_all_parent_ids()
 
-    for parent_id in group_store.get_all_parent_ids():
+    for index, parent_id in enumerate(parent_ids):
         old_players = old_players_dict[parent_id]
         new_players = steam_state.get_players(group_store.get_all_steam_ids(parent_id))
         try:
-            await broadcast_steam_info(parent_id, old_players, new_players)
+            sent = await broadcast_steam_info(parent_id, old_players, new_players)
         except Exception as exc:
             logger.exception(f"群 {parent_id} Steam 播报失败: {exc}")
+            continue
+
+        if (
+            sent
+            and config.steam_broadcast_send_delay > 0
+            and index < len(parent_ids) - 1
+        ):
+            await asyncio.sleep(config.steam_broadcast_send_delay)
 
 
 if not config.steam_disable_broadcast_on_startup:

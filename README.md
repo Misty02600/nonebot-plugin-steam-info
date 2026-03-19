@@ -89,7 +89,8 @@
 | --- | --- | --- |
 | STEAM_API_KEY | 无 | Steam API Key，可以是一个字符串，也可以是一列表的字符串，即支持多个API Key，在 [此处](https://partner.steamgames.com/doc/webapi_overview/auth) 获取 |
 | PROXY | 无 | 代理地址 |
-| STEAM_REQUEST_INTERVAL | 300 | Steam 请求间隔 & 播报间隔。单位为秒 |
+| STEAM_REQUEST_INTERVAL | 300 | Steam 状态轮询间隔。单位为秒 |
+| STEAM_BROADCAST_SEND_DELAY | 2.0 | 群播报发送间隔。单位为秒，控制不同群之间的发送节奏 |
 | STEAM_BROADCAST_TYPE | `"part"` | 播报类型。`"part"` 为部分播报(图 2)，`"all"` 为全部播报(图 1)，`"none"` 为只播报文字消息 |
 | STEAM_DISABLE_BROADCAST_ON_STARTUP | `False` | Bot 启动时是否禁用播报 |
 | STEAM_FONT_REGULAR_PATH | fonts/MiSans-Regular.ttf | Regular 字体相对目录 |

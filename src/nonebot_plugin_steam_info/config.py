@@ -9,6 +9,9 @@ class Config(BaseModel):
     steam_request_interval: int = Field(
         default=300, description="Steam 状态轮询间隔（秒）"
     )
+    steam_broadcast_send_delay: float = Field(
+        default=2.0, description="群播报发送间隔（秒）"
+    )
     steam_broadcast_type: str = Field(
         default="part", description="播报类型：all / part / none"
     )

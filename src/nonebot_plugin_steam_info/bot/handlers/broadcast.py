@@ -55,9 +55,9 @@ async def broadcast_steam_info(
     parent_id: str,
     old_players: list[ProcessedPlayer],
     new_players: list[ProcessedPlayer],
-):
+) -> bool:
     if group_store.is_disabled(parent_id):
-        return None
+        return False
 
     bot = nonebot.get_bot()
 
@@ -97,9 +97,10 @@ async def broadcast_steam_info(
             logger.error(f"未知的播报类型: {entry['type']}")
 
     if msg == []:
-        return None
+        return False
 
     text_content = "\n".join(msg)
+    image_bytes: bytes | None = None
 
     if config.steam_broadcast_type == "all":
         steam_status_data = [
@@ -113,7 +114,8 @@ async def broadcast_steam_info(
 
         parent_avatar, parent_name = group_store.get_info(parent_id)
         image = draw_friends_status(parent_avatar, parent_name, steam_status_data)
-        uni_msg = UniMessage([Text(text_content), Image(raw=image_to_bytes(image))])
+        image_bytes = image_to_bytes(image)
+        uni_msg = UniMessage([Text(text_content), Image(raw=image_bytes)])
     elif config.steam_broadcast_type == "part":
         images: list[PILImage.Image] = []
         for entry in play_data:
@@ -135,12 +137,25 @@ async def broadcast_steam_info(
             image = (
                 vertically_concatenate_images(images) if len(images) > 1 else images[0]
             )
-            uni_msg = UniMessage([Text(text_content), Image(raw=image_to_bytes(image))])
+            image_bytes = image_to_bytes(image)
+            uni_msg = UniMessage([Text(text_content), Image(raw=image_bytes)])
     elif config.steam_broadcast_type == "none":
         uni_msg = UniMessage([Text(text_content)])
     else:
         logger.error(f"未知的播报类型: {config.steam_broadcast_type}")
-        return None
+        return False
 
     target = Target(parent_id, parent_id, True, False, "", bot.adapter.get_name())
-    await uni_msg.send(target, bot)
+    try:
+        await uni_msg.send(target, bot)
+    except Exception as exc:
+        logger.warning(
+            "群 %s Steam 播报发送失败: type=%s, lines=%s, image_bytes=%s, error=%s",
+            parent_id,
+            config.steam_broadcast_type,
+            len(msg),
+            len(image_bytes) if image_bytes is not None else 0,
+            exc,
+        )
+        raise
+    return True
