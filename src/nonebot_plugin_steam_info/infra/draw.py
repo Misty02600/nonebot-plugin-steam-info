@@ -297,10 +297,13 @@ def _draw_persona_badge(
     y = 12 if gaming_layout else 18
 
     if personastate == 2:
-        canvas.paste(busy := Image.open(busy_path), (text_x + name_width + 6, y), busy)
+        badge = Image.open(busy_path).convert("RGBA")
+        canvas.paste(badge, (text_x + name_width + 6, y), badge)
     elif personastate == 4:
-        zzz = Image.open(zzz_gaming_path if gaming_layout else zzz_online_path)
-        canvas.paste(zzz, (text_x + name_width + 8, y), zzz)
+        badge = Image.open(
+            zzz_gaming_path if gaming_layout else zzz_online_path
+        ).convert("RGBA")
+        canvas.paste(badge, (text_x + name_width + 8, y))
 
 
 def _measure_text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
