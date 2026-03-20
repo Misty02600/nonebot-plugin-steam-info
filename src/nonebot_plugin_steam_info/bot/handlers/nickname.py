@@ -1,9 +1,9 @@
 from nonebot import on_command
 from nonebot.adapters import Event, Message
-from nonebot.params import CommandArg, Depends
-from nonebot_plugin_alconna import Target
+from nonebot.params import CommandArg
+from nonebot_plugin_uninfo import Uninfo
 
-from ..nonebot_utils import get_target
+from ..nonebot_utils import get_parent_id
 from ..service import group_store
 
 set_nickname = on_command("steamnickname", aliases={"steam昵称"}, priority=10)
@@ -11,9 +11,11 @@ set_nickname = on_command("steamnickname", aliases={"steam昵称"}, priority=10)
 
 @set_nickname.handle()
 async def set_nickname_handle(
-    event: Event, target: Target = Depends(get_target), cmd_arg: Message = CommandArg()
+    event: Event, session: Uninfo, cmd_arg: Message = CommandArg()
 ):
-    parent_id = target.parent_id or target.id
+    parent_id = get_parent_id(session)
+    if parent_id is None:
+        await set_nickname.finish("暂不支持在私聊中使用该命令")
 
     nickname = cmd_arg.extract_plain_text().strip()
 

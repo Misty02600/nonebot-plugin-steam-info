@@ -8,12 +8,15 @@ from typing import Any, cast
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
-from ..core.models import Achievements, DrawPlayerStatusData
+from ..core.models import Achievements, DrawPlayerStatusData, FriendStatusData
 from .utils import hex_to_rgb
 
 WIDTH = 400
 PARENT_AVATAR_SIZE = 72
 MEMBER_AVATAR_SIZE = 50
+GAMING_ROW_HEIGHT = 78
+GAME_ICON_SIZE = 34
+AVATAR_FRAME_PADDING = 4
 
 unknown_avatar_path = Path(__file__).parent.parent / "res/unknown_avatar.jpg"
 parent_status_path = Path(__file__).parent.parent / "res/parent_status.png"
@@ -94,6 +97,11 @@ def vertically_concatenate_images(images: list[Image.Image]) -> Image.Image:
     return new_image
 
 
+def _format_friend_display_name(friend_name: str, nickname: str | None = None) -> str:
+    cleaned_nickname = nickname.strip() if nickname else ""
+    return f"{friend_name} ({cleaned_nickname})" if cleaned_nickname else friend_name
+
+
 def draw_start_gaming(
     avatar: Image.Image, friend_name: str, game_name: str, nickname: str | None = None
 ):
@@ -104,7 +112,7 @@ def draw_start_gaming(
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (104, 14),
-        f"{friend_name} ({nickname})" if nickname is not None else friend_name,
+        _format_friend_display_name(friend_name, nickname),
         font=font_regular(19),
         fill=hex_to_rgb("e3ffc2"),
     )
@@ -187,47 +195,19 @@ def draw_friend_status(
     status: str,
     personastate: int,
     nickname: str | None = None,
+    avatar_frame: Image.Image | None = None,
+    game_icon: Image.Image | None = None,
+    game_name: str | None = None,
 ) -> Image.Image:
+    display_name = _format_friend_display_name(friend_name, nickname)
     friend_avatar = friend_avatar.resize(
         (MEMBER_AVATAR_SIZE, MEMBER_AVATAR_SIZE), Image.Resampling.BICUBIC
     )
+    gaming_layout = game_name is not None and status not in {"在线", "离开"}
+    row_height = GAMING_ROW_HEIGHT if gaming_layout else 64
 
-    canvas = Image.new("RGB", (WIDTH, 64), hex_to_rgb("1e2024"))
-
+    canvas = Image.new("RGBA", (WIDTH, row_height), (*hex_to_rgb("1e2024"), 255))
     draw = ImageDraw.Draw(canvas)
-
-    display_name = (
-        f"{friend_name} ({nickname})" if nickname is not None else friend_name
-    )
-
-    if personastate == 2:
-        # 忙碌 加上一个忙碌图标
-        canvas = draw_friend_status(friend_avatar, friend_name, status, 1, nickname)
-        draw = ImageDraw.Draw(canvas)
-
-        busy = Image.open(busy_path)
-
-        name_width = int(draw.textlength(display_name, font=font_bold(20)))
-
-        canvas.paste(busy, (22 + MEMBER_AVATAR_SIZE + 16 + name_width + 4, 18))
-
-        return canvas
-
-    if personastate == 4:
-        # 打盹 加上一个 ZZZ
-        canvas = draw_friend_status(friend_avatar, friend_name, status, 1, nickname)
-        draw = ImageDraw.Draw(canvas)
-
-        zzz = Image.open(zzz_online_path if status == "在线" else zzz_gaming_path)
-
-        name_width = int(draw.textlength(display_name, font=font_bold(20)))
-
-        canvas.paste(zzz, (22 + MEMBER_AVATAR_SIZE + 16 + name_width + 8, 18))
-
-        return canvas
-
-    # 绘制头像
-    canvas.paste(friend_avatar, (22, 8))
 
     if status != "在线" and personastate == 1:
         fill = (hex_to_rgb("e3ffc2"), hex_to_rgb("8ebe56"))
@@ -236,142 +216,158 @@ def draw_friend_status(
     else:
         fill = personastate_colors[personastate]
 
-    # 绘制名称
-    draw.text(
-        (22 + MEMBER_AVATAR_SIZE + 18, 12),
-        display_name,
-        font=font_bold(20),
-        fill=fill[0],
-    )
+    avatar_image = _compose_avatar_with_frame(friend_avatar, avatar_frame)
+    avatar_x = 60 if gaming_layout else 22
+    avatar_y = (row_height - avatar_image.height) // 2
+    canvas.paste(avatar_image, (avatar_x, avatar_y), avatar_image)
 
-    # 绘制状态
+    if gaming_layout:
+        name_font = font_bold(19)
+        game_font = font_regular(17)
+        name_height = _measure_text_height(name_font, display_name)
+        game_height = _measure_text_height(game_font, game_name or status)
+        text_block_height = name_height + game_height + 4
+        text_top = max(8, (row_height - text_block_height) // 2)
+        icon_y = (row_height - GAME_ICON_SIZE) // 2
+        bar_top = max(8, avatar_y + 3)
+        bar_bottom = min(row_height - 8, avatar_y + avatar_image.height - 3)
+
+        if game_icon is not None:
+            icon = game_icon.resize(
+                (GAME_ICON_SIZE, GAME_ICON_SIZE), Image.Resampling.BICUBIC
+            )
+            icon = rounded_rectangle(icon.convert("RGBA"), 8)
+            canvas.paste(icon, (20, icon_y), icon)
+
+        draw.rectangle((120, bar_top, 123, bar_bottom), fill=hex_to_rgb("8ebe56"))
+        draw.text(
+            (132, text_top),
+            display_name,
+            font=name_font,
+            fill=fill[0],
+        )
+        draw.text(
+            (132, text_top + name_height + 4),
+            game_name or status,
+            font=game_font,
+            fill=hex_to_rgb("8ebe56"),
+        )
+    else:
+        draw.text(
+            (22 + MEMBER_AVATAR_SIZE + 18, 12),
+            display_name,
+            font=font_bold(20),
+            fill=fill[0],
+        )
+        draw.text(
+            (22 + MEMBER_AVATAR_SIZE + 16, 36),
+            status,
+            font=font_regular(18),
+            fill=fill[1],
+        )
+
+    _draw_persona_badge(canvas, display_name, personastate, gaming_layout)
+
+    return canvas.convert("RGB")
+
+
+def _compose_avatar_with_frame(
+    avatar: Image.Image, avatar_frame: Image.Image | None
+) -> Image.Image:
+    if avatar_frame is None:
+        return avatar.convert("RGBA")
+
+    framed_size = MEMBER_AVATAR_SIZE + AVATAR_FRAME_PADDING * 2
+    composed = Image.new("RGBA", (framed_size, framed_size), (0, 0, 0, 0))
+    composed.paste(avatar.convert("RGBA"), (AVATAR_FRAME_PADDING, AVATAR_FRAME_PADDING))
+    frame = avatar_frame.resize((framed_size, framed_size), Image.Resampling.BICUBIC)
+    composed.alpha_composite(frame)
+    return composed
+
+
+def _draw_persona_badge(
+    canvas: Image.Image,
+    display_name: str,
+    personastate: int,
+    gaming_layout: bool,
+) -> None:
+    draw = ImageDraw.Draw(canvas)
+    name_width = int(draw.textlength(display_name, font=font_bold(19 if gaming_layout else 20)))
+    text_x = 132 if gaming_layout else 22 + MEMBER_AVATAR_SIZE + 18
+    y = 12 if gaming_layout else 18
+
+    if personastate == 2:
+        canvas.paste(busy := Image.open(busy_path), (text_x + name_width + 6, y), busy)
+    elif personastate == 4:
+        zzz = Image.open(zzz_gaming_path if gaming_layout else zzz_online_path)
+        canvas.paste(zzz, (text_x + name_width + 8, y), zzz)
+
+
+def _measure_text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
+    bbox = font.getbbox(text or "A")
+    return max(1, bbox[3] - bbox[1])
+
+
+def _draw_status_section(
+    title: str,
+    data: list[FriendStatusData],
+    count_text: str | None = None,
+) -> Image.Image:
+    rows = [
+        draw_friend_status(
+            d["avatar"],
+            d["name"],
+            d["status"],
+            d["personastate"],
+            d.get("nickname"),
+            d.get("avatar_frame"),
+            d.get("game_icon"),
+            d.get("game_name"),
+        )
+        for d in data
+    ]
+    height = 64 + sum(row.height for row in rows) + 16
+    canvas = Image.new("RGB", (WIDTH, height), hex_to_rgb("1e2024"))
+    draw = ImageDraw.Draw(canvas)
+
     draw.text(
-        (22 + MEMBER_AVATAR_SIZE + 16, 36),
-        status,
-        font=font_regular(18),
-        fill=fill[1],
+        (22, 22),
+        title,
+        hex_to_rgb("c5d6d4"),
+        font=font_regular(22),
     )
+    if count_text is not None:
+        draw.text(
+            (22 + int(draw.textlength(title, font=font_regular(22))) + 8, 25),
+            count_text,
+            hex_to_rgb("67665c"),
+            font=font_regular(18),
+        )
+
+    y = 64
+    for row in rows:
+        canvas.paste(row, (0, y))
+        y += row.height
 
     return canvas
 
 
-def draw_gaming_friends_status(data: list[dict[str, Any]]) -> Image.Image:
+def draw_gaming_friends_status(data: list[FriendStatusData]) -> Image.Image:
     # 排序数据，按照游戏名称字母表顺序排序
-    data.sort(key=lambda x: x["status"])
-
-    canvas = Image.new(
-        "RGB",
-        (WIDTH, 64 + (MEMBER_AVATAR_SIZE + 16) * len(data) + 16),
-        hex_to_rgb("1e2024"),
-    )
-
-    draw = ImageDraw.Draw(canvas)
-
-    # 绘制标题
-    draw.text(
-        (22, 22),
-        "游戏中",
-        hex_to_rgb("c5d6d4"),
-        font=font_regular(22),
-    )
-
-    # 绘制好友头像和名称
-    friends_status_list = [
-        draw_friend_status(
-            d["avatar"], d["name"], d["status"], d["personastate"], d["nickname"]
-        )
-        for d in data
-    ]
-
-    # 拼接好友头像和名称
-    for i, friend_status in enumerate(friends_status_list):
-        canvas.paste(friend_status, (0, 64 + (MEMBER_AVATAR_SIZE + 16) * i))
-
-    return canvas
+    data.sort(key=lambda x: x.get("game_name") or x["status"])
+    return _draw_status_section("游戏中", data)
 
 
-def draw_online_friends_status(data: list[dict[str, Any]]) -> Image.Image:
-    canvas = Image.new(
-        "RGB",
-        (WIDTH, 64 + (MEMBER_AVATAR_SIZE + 16) * len(data) + 16),
-        hex_to_rgb("1e2024"),
-    )
-
-    draw = ImageDraw.Draw(canvas)
-
-    # 绘制标题
-    draw.text(
-        (22, 22),
-        "在线好友",
-        hex_to_rgb("c5d6d4"),
-        font=font_regular(22),
-    )
-
-    # 绘制在线人数
-    draw.text(
-        (115, 25),
-        f"({len(data)})",
-        hex_to_rgb("67665c"),
-        font=font_regular(18),
-    )
-
-    # 绘制好友头像和名称
-    friends_status_list = [
-        draw_friend_status(
-            d["avatar"], d["name"], d["status"], d["personastate"], d["nickname"]
-        )
-        for d in data
-    ]
-
-    # 拼接好友头像和名称
-    for i, friend_status in enumerate(friends_status_list):
-        canvas.paste(friend_status, (0, 64 + (MEMBER_AVATAR_SIZE + 16) * i))
-
-    return canvas
+def draw_online_friends_status(data: list[FriendStatusData]) -> Image.Image:
+    return _draw_status_section("在线好友", data, f"({len(data)})")
 
 
-def draw_offline_friends_status(data: list[dict[str, Any]]) -> Image.Image:
-    canvas = Image.new(
-        "RGB",
-        (WIDTH, 64 + (MEMBER_AVATAR_SIZE + 16) * len(data) + 16),
-        hex_to_rgb("1e2024"),
-    )
-
-    draw = ImageDraw.Draw(canvas)
-
-    # 绘制标题
-    draw.text(
-        (22, 22),
-        "离线",
-        hex_to_rgb("c5d6d4"),
-        font=font_regular(22),
-    )
-
-    # 绘制离线人数
-    draw.text(
-        (72, 25),
-        f"({len(data)})",
-        hex_to_rgb("67665c"),
-        font=font_regular(18),
-    )
-
-    # 绘制好友头像和名称
-    friends_status_list = [
-        draw_friend_status(
-            d["avatar"], d["name"], d["status"], d["personastate"], d["nickname"]
-        )
-        for d in data
-    ]
-
-    # 拼接好友头像和名称
-    for i, friend_status in enumerate(friends_status_list):
-        canvas.paste(friend_status, (0, 64 + (MEMBER_AVATAR_SIZE + 16) * i))
-
-    return canvas
+def draw_offline_friends_status(data: list[FriendStatusData]) -> Image.Image:
+    return _draw_status_section("离线", data, f"({len(data)})")
 
 
 def draw_friends_status(
-    parent_avatar: Image.Image, parent_name: str, data: list[dict[str, Any]]
+    parent_avatar: Image.Image, parent_name: str, data: list[FriendStatusData]
 ):
     data.sort(key=lambda x: x["personastate"])
 
@@ -872,31 +868,27 @@ def rounded_rectangle(
         一个PIL Image对象，表示切割后的圆角矩形图像。
     """
 
-    width, height = image.size
+    image_rgba = image.convert("RGBA")
+    width, height = image_rgba.size
 
-    image_ = Image.new("RGBA", (width + 1, height + 1), (0, 0, 0, 0))
-    image_.paste(image, (0, 0), image.convert("RGBA"))
+    mask = Image.new("L", (width, height), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill=255)
 
-    # 创建一个圆角矩形的遮罩
-    result = Image.new("RGBA", (width + 1, height + 1), (0, 0, 0, 0))
-    mask = Image.new("L", (width + 1, height + 1), 0)
-    draw = ImageDraw.Draw(mask)
-    image_draw = ImageDraw.Draw(result)
+    result = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    result.paste(image_rgba, (0, 0), mask)
 
-    # 绘制圆角矩形
-    draw.rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
-
-    # 应用遮罩到原始图像
-    result.paste(image_, (0, 0), mask)
-
-    # 添加边框 (如果需要)
-    if border:
-        image_draw.rounded_rectangle(
-            (0, 0, width, height),
-            radius=radius,
+    if border and border_width > 0:
+        border_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        border_draw = ImageDraw.Draw(border_layer)
+        inset = max(0, border_width // 2)
+        border_draw.rounded_rectangle(
+            (inset, inset, width - 1 - inset, height - 1 - inset),
+            radius=max(0, radius - inset),
             outline=border_color,
             width=border_width,
         )
+        result.alpha_composite(border_layer)
 
     return result
 

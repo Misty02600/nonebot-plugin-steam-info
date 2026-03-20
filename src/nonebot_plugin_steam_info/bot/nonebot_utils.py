@@ -4,15 +4,25 @@ from io import BytesIO
 
 import anyio
 import httpx
-from nonebot_plugin_alconna import Image, MsgTarget, Target
+from nonebot_plugin_alconna import Image
+from nonebot_plugin_uninfo import Session
 
 
-async def get_target(target: MsgTarget) -> Target | None:
-    if target.private:
-        # 不支持私聊消息
+def get_parent_id(session: Session | None) -> str | None:
+    if session is None or session.scene.is_private:
         return None
 
-    return target
+    if session.scene.parent is not None:
+        return session.scene.parent.id
+
+    return session.scene.id
+
+
+def is_admin(session: Session | None) -> bool:
+    if session is None or session.member is None:
+        return False
+
+    return any(role.level > 1 for role in session.member.roles)
 
 
 async def to_image_data(image: Image) -> BytesIO | bytes:

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TypedDict
 from typing_extensions import NotRequired
 
+from PIL import Image
+
 
 class Player(TypedDict):
     steamid: str
@@ -75,8 +77,21 @@ class DrawPlayerStatusData(TypedDict):
     total_achievement_number: int
 
 
+class FriendStatusData(TypedDict):
+    steamid: str
+    avatar: Image.Image
+    avatar_frame: Image.Image | None
+    name: str
+    status: str
+    personastate: int
+    nickname: NotRequired[str | None]
+    game_icon: Image.Image | None
+    game_name: NotRequired[str | None]
+
+
 __all__ = [
     "DrawPlayerStatusData",
+    "FriendStatusData",
     "Player",
     "PlayerSummaries",
     "PlayerSummariesProcessedResponse",

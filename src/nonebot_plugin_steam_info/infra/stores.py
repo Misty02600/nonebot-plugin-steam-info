@@ -114,6 +114,14 @@ class GroupStore(JsonStore[GroupDataStore]):
             if not config.disabled
         ]
 
+    def remove_group(self, parent_id: str) -> None:
+        removed = self.data.groups.pop(parent_id, None)
+        avatar_path = self._avatars_dir / f"{parent_id}.png"
+        if avatar_path.exists():
+            avatar_path.unlink()
+        if removed is not None:
+            self.save()
+
     # endregion
 
     # region 群信息

@@ -3,10 +3,10 @@
 from nonebot import on_command
 from nonebot.adapters import Message
 from nonebot.log import logger
-from nonebot.params import CommandArg, Depends
-from nonebot_plugin_alconna import Target
+from nonebot.params import CommandArg
+from nonebot_plugin_uninfo import Uninfo
 
-from ..nonebot_utils import get_target
+from ..nonebot_utils import is_admin
 from ..service import cache_path, client
 
 # 清除缓存命令（仅管理员可用）
@@ -19,9 +19,7 @@ clear_cache = on_command(
 
 
 @clear_cache.handle()
-async def clear_cache_handle(
-    target: Target = Depends(get_target), arg: Message = CommandArg()
-):
+async def clear_cache_handle(session: Uninfo, arg: Message = CommandArg()):
     """清除所有 Steam 缓存或特定用户缓存
 
     使用方法：
@@ -29,7 +27,7 @@ async def clear_cache_handle(
     - steamcache [steamid]                  # 清除指定用户缓存
     """
     # 检查权限（仅管理员）
-    if not getattr(target, "is_admin", False):
+    if not is_admin(session):
         await clear_cache.finish("❌ 仅管理员可以使用此命令")
         return
 

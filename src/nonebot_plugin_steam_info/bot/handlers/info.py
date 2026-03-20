@@ -4,14 +4,15 @@ from io import BytesIO
 
 from nonebot import on_command
 from nonebot.adapters import Bot, Event, Message
-from nonebot.params import CommandArg, Depends
-from nonebot_plugin_alconna import At, Image, Target, UniMessage
+from nonebot.params import CommandArg
+from nonebot_plugin_alconna import At, Image, UniMessage
+from nonebot_plugin_uninfo import Uninfo
 from PIL import Image as PILImage
 
 from ...infra.draw import draw_player_status
 from ...infra.steam_client import SteamAPIClient
 from ...infra.utils import image_to_bytes
-from ..nonebot_utils import get_target
+from ..nonebot_utils import get_parent_id
 from ..service import cache_path, client, group_store
 
 info = on_command("steaminfo", aliases={"steam信息"}, priority=10)
@@ -21,10 +22,12 @@ info = on_command("steaminfo", aliases={"steam信息"}, priority=10)
 async def info_handle(
     bot: Bot,
     event: Event,
-    target: Target = Depends(get_target),
+    session: Uninfo,
     arg: Message = CommandArg(),
 ):
-    parent_id = target.parent_id or target.id
+    parent_id = get_parent_id(session)
+    if parent_id is None:
+        await info.finish("暂不支持在私聊中使用该命令")
 
     uni_arg = await UniMessage.generate(message=arg, event=event, bot=bot)  # type: ignore[attr-defined]
     at = uni_arg[At]

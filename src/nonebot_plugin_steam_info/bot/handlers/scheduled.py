@@ -1,37 +1,45 @@
 import asyncio
 
 import nonebot
+from nonebot.adapters import Bot
 from nonebot.log import logger
 from nonebot_plugin_apscheduler import scheduler
+from nonebot_plugin_uninfo import SceneType, get_interface
 
 from ...core.models import ProcessedPlayer
 from ..service import client, config, group_store, steam_state
 from .broadcast import broadcast_steam_info
 
 
-async def sync_enabled_groups():
-    try:
-        bot = nonebot.get_bot()
-    except ValueError:
+async def prune_departed_groups(bot: Bot | None = None):
+    if bot is None:
+        try:
+            bot = nonebot.get_bot()
+        except ValueError:
+            return
+
+    interface = get_interface(bot)
+    if interface is None:
+        logger.debug(
+            f"适配器 {bot.adapter.get_name()} 不支持 uninfo 查询，跳过 Steam 群同步"
+        )
         return
 
     try:
-        group_list = await bot.call_api("get_group_list")
+        active_parent_ids = {
+            scene.id for scene in await interface.get_scenes(SceneType.GROUP)
+        } | {scene.id for scene in await interface.get_scenes(SceneType.GUILD)}
     except Exception as exc:
-        logger.debug(f"获取群列表失败，跳过 Steam 群同步: {exc}")
+        logger.debug(f"通过 uninfo 获取场景列表失败，跳过 Steam 群同步: {exc}")
         return
 
-    active_group_ids = {
-        str(group["group_id"])
-        for group in group_list
-        if isinstance(group, dict) and group.get("group_id") is not None
-    }
-
-    for parent_id in group_store.get_enabled_parent_ids():
-        if parent_id in active_group_ids:
+    for parent_id in group_store.get_all_parent_ids():
+        if parent_id in active_parent_ids:
             continue
-        group_store.disable(parent_id)
-        logger.warning("群 %s 已不在当前 Bot 群列表中，自动禁用 Steam 播报", parent_id)
+        group_store.remove_group(parent_id)
+        logger.warning(
+            f"群 {parent_id} 已不在当前 Bot 群列表中，已自动清理 Steam 群数据"
+        )
 
 
 async def update_steam_info():
@@ -55,7 +63,6 @@ async def update_steam_info():
     "interval", minutes=config.steam_request_interval / 60, id="update_steam_info"
 )
 async def fetch_and_broadcast_steam_info():
-    await sync_enabled_groups()
     old_players_dict = await update_steam_info()
     parent_ids = group_store.get_enabled_parent_ids()
 
@@ -75,6 +82,8 @@ async def fetch_and_broadcast_steam_info():
         ):
             await asyncio.sleep(config.steam_broadcast_send_delay)
 
+
+nonebot.get_driver().on_bot_connect(prune_departed_groups)
 
 if not config.steam_disable_broadcast_on_startup:
     nonebot.get_driver().on_bot_connect(update_steam_info)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import datetime
+import re
 import time
 from io import BytesIO
 from pathlib import Path
@@ -11,8 +12,11 @@ import httpx
 import pytz
 from PIL import Image
 
-from ..core.models import Player
+from ..core.models import FriendStatusData, Player
 from .stores import GroupStore
+
+STEAM_ID_OFFSET = 76561197960265728
+MINIPROFILE_FRAME_NONE_SUFFIX = "none"
 
 
 async def _fetch_avatar(avatar_url: str, proxy: str | None = None) -> Image.Image:
@@ -43,18 +47,127 @@ async def fetch_avatar(
     return avatar
 
 
+def _load_image(path: Path, mode: str | None = None) -> Image.Image:
+    image = Image.open(path)
+    return image.convert(mode) if mode else image.copy()
+
+
+async def _fetch_image_to_cache(
+    url: str,
+    cache_file: Path,
+    proxy: str | None = None,
+) -> Image.Image | None:
+    async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
+        response = await client.get(url)
+        if response.status_code != 200:
+            return None
+        cache_file.write_bytes(response.content)
+    return _load_image(cache_file, "RGBA")
+
+
+async def fetch_avatar_frame(
+    steam_id: str, cache_dir: Path | None, proxy: str | None = None
+) -> Image.Image | None:
+    if cache_dir is not None:
+        cached_frames = sorted(cache_dir.glob(f"avatar_frame_{steam_id}_*.png"))
+        if cached_frames:
+            return _load_image(cached_frames[0], "RGBA")
+
+        none_marker = cache_dir / f"avatar_frame_{steam_id}_{MINIPROFILE_FRAME_NONE_SUFFIX}"
+        if none_marker.exists():
+            return None
+
+    account_id = int(steam_id) - STEAM_ID_OFFSET
+    if account_id <= 0:
+        return None
+
+    async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
+        response = await client.get(
+            f"https://steamcommunity.com/miniprofile/{account_id}/json"
+        )
+        if response.status_code != 200:
+            return None
+        data = response.json()
+
+    frame_url = data.get("avatar_frame")
+    if not frame_url:
+        if cache_dir is not None:
+            none_marker.touch(exist_ok=True)
+        return None
+
+    frame_key = frame_url.rsplit("/", 1)[-1].split("?", 1)[0]
+    cache_file = (
+        cache_dir / f"avatar_frame_{steam_id}_{frame_key}"
+        if cache_dir is not None
+        else None
+    )
+
+    if cache_file is not None and cache_file.exists():
+        return _load_image(cache_file, "RGBA")
+
+    if cache_file is None:
+        async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
+            response = await client.get(frame_url)
+            if response.status_code != 200:
+                return None
+            return Image.open(BytesIO(response.content)).convert("RGBA")
+
+    return await _fetch_image_to_cache(frame_url, cache_file, proxy)
+
+
+async def fetch_game_icon(
+    app_id: str, cache_dir: Path | None, proxy: str | None = None
+) -> Image.Image | None:
+    if cache_dir is not None:
+        cache_file = cache_dir / f"game_icon_{app_id}.png"
+        if cache_file.exists():
+            return _load_image(cache_file, "RGBA")
+    else:
+        cache_file = None
+
+    async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
+        response = await client.get(f"https://steamcommunity.com/app/{app_id}")
+        if response.status_code != 200:
+            return None
+
+    match = re.search(
+        r'<div class="apphub_AppIcon"><img src="([^"]+)"',
+        response.text,
+    )
+    if match is None:
+        return None
+
+    icon_url = match.group(1)
+    if cache_file is None:
+        async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
+            icon_response = await client.get(icon_url)
+            if icon_response.status_code != 200:
+                return None
+            return Image.open(BytesIO(icon_response.content)).convert("RGBA")
+
+    return await _fetch_image_to_cache(icon_url, cache_file, proxy)
+
+
 def convert_player_name_to_nickname(
-    data: dict[str, str], parent_id: str, group_store: GroupStore
-) -> dict[str, str]:
+    data: dict[str, Any], parent_id: str, group_store: GroupStore
+) -> dict[str, Any]:
     bind_entry = group_store.get_bind_by_steam_id(parent_id, data["steamid"])
-    data["nickname"] = (bind_entry.nickname or "") if bind_entry else ""
+    nickname = bind_entry.nickname.strip() if bind_entry and bind_entry.nickname else ""
+    data["nickname"] = nickname or None
     return data
 
 
 async def simplize_steam_player_data(
     player: Player, proxy: str | None = None, avatar_dir: Path | None = None
-) -> dict[str, Any]:
+) -> FriendStatusData:
     avatar = await fetch_avatar(player, avatar_dir, proxy)
+    avatar_frame = await fetch_avatar_frame(player["steamid"], avatar_dir, proxy)
+    game_name = player.get("gameextrainfo")
+    game_icon = (
+        await fetch_game_icon(player["gameid"], avatar_dir, proxy)
+        if player.get("gameid")
+        else None
+    )
 
     if player["personastate"] == 0:
         if not player.get("lastlogoff"):
@@ -96,9 +209,12 @@ async def simplize_steam_player_data(
     return {
         "steamid": player["steamid"],
         "avatar": avatar,
+        "avatar_frame": avatar_frame,
         "name": player["personaname"],
         "status": status,
         "personastate": player["personastate"],
+        "game_icon": game_icon,
+        "game_name": game_name,
     }
 
 

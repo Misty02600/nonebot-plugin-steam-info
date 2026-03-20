@@ -5,31 +5,41 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_sync_enabled_groups_disables_missing_groups(monkeypatch):
+async def test_prune_departed_groups_removes_missing_groups(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
-    disable_mock = MagicMock()
+    remove_group_mock = MagicMock()
     monkeypatch.setattr(
         scheduled,
         "group_store",
         SimpleNamespace(
-            get_enabled_parent_ids=lambda: ["1001", "1002"],
-            disable=disable_mock,
+            get_all_parent_ids=lambda: ["1001", "1002"],
+            remove_group=remove_group_mock,
         ),
     )
     monkeypatch.setattr(
         scheduled.nonebot,
         "get_bot",
-        lambda: SimpleNamespace(
-            call_api=AsyncMock(return_value=[{"group_id": 1001}, {"group_id": 1003}])
+        lambda: SimpleNamespace(adapter=SimpleNamespace(get_name=lambda: "OneBot V11")),
+    )
+    monkeypatch.setattr(
+        scheduled,
+        "get_interface",
+        lambda _bot: SimpleNamespace(
+            get_scenes=AsyncMock(
+                side_effect=[
+                    [SimpleNamespace(id="1001")],
+                    [],
+                ]
+            )
         ),
     )
     logger_warning = MagicMock()
     monkeypatch.setattr(scheduled.logger, "warning", logger_warning)
 
-    await scheduled.sync_enabled_groups()
+    await scheduled.prune_departed_groups()
 
-    disable_mock.assert_called_once_with("1002")
+    remove_group_mock.assert_called_once_with("1002")
     logger_warning.assert_called_once()
 
 
@@ -67,7 +77,6 @@ async def test_update_steam_info_only_reads_enabled_groups(monkeypatch):
 async def test_fetch_and_broadcast_steam_info_isolates_group_errors(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
-    monkeypatch.setattr(scheduled, "sync_enabled_groups", AsyncMock())
     monkeypatch.setattr(
         scheduled, "update_steam_info", AsyncMock(return_value={"1001": [], "1002": []})
     )
@@ -102,7 +111,6 @@ async def test_fetch_and_broadcast_steam_info_isolates_group_errors(monkeypatch)
 async def test_fetch_and_broadcast_steam_info_waits_between_groups(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
-    monkeypatch.setattr(scheduled, "sync_enabled_groups", AsyncMock())
     monkeypatch.setattr(
         scheduled,
         "update_steam_info",

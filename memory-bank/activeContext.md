@@ -18,7 +18,6 @@
   - 删除旧代码 data_source.py + steam_api.py
   - 修复 info.py 引号语法错误
   - 测试全部通过（20/20）
-- 2026-03-19: 修复 Ruff 静态检查报错（ASYNC240、Q000），`uv run ruff check .` 已通过
 
 ## 下一步
 - 无明确待完成任务（等待用户需求）

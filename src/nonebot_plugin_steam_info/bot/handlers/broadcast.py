@@ -5,8 +5,8 @@ import time
 import nonebot
 from nonebot import on_command
 from nonebot.log import logger
-from nonebot.params import Depends
 from nonebot_plugin_alconna import Image, Target, Text, UniMessage
+from nonebot_plugin_uninfo import Uninfo
 from PIL import Image as PILImage
 
 from ...core.models import ProcessedPlayer
@@ -21,7 +21,7 @@ from ...infra.utils import (
     image_to_bytes,
     simplize_steam_player_data,
 )
-from ..nonebot_utils import get_target
+from ..nonebot_utils import get_parent_id
 from ..service import (
     cache_path,
     config,
@@ -34,8 +34,10 @@ disable = on_command("steamdisable", aliases={"禁用steam"}, priority=10)
 
 
 @enable.handle()
-async def enable_handle(target: Target = Depends(get_target)):
-    parent_id = target.parent_id or target.id
+async def enable_handle(session: Uninfo):
+    parent_id = get_parent_id(session)
+    if parent_id is None:
+        await enable.finish("暂不支持在私聊中使用该命令")
 
     group_store.enable(parent_id)
 
@@ -43,8 +45,10 @@ async def enable_handle(target: Target = Depends(get_target)):
 
 
 @disable.handle()
-async def disable_handle(target: Target = Depends(get_target)):
-    parent_id = target.parent_id or target.id
+async def disable_handle(session: Uninfo):
+    parent_id = get_parent_id(session)
+    if parent_id is None:
+        await disable.finish("暂不支持在私聊中使用该命令")
 
     group_store.disable(parent_id)
 
@@ -150,12 +154,11 @@ async def broadcast_steam_info(
         await uni_msg.send(target, bot)
     except Exception as exc:
         logger.warning(
-            "群 %s Steam 播报发送失败: type=%s, lines=%s, image_bytes=%s, error=%s",
-            parent_id,
-            config.steam_broadcast_type,
-            len(msg),
-            len(image_bytes) if image_bytes is not None else 0,
-            exc,
+            f"群 {parent_id} Steam 播报发送失败: "
+            f"type={config.steam_broadcast_type}, "
+            f"lines={len(msg)}, "
+            f"image_bytes={len(image_bytes) if image_bytes is not None else 0}, "
+            f"error={exc}"
         )
         raise
     return True
