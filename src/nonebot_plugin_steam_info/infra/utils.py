@@ -6,14 +6,24 @@ import re
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Protocol, cast
 
+import anyio
 import httpx
 import pytz
 from PIL import Image
 
 from ..core.models import FriendStatusData, Player
-from .stores import GroupStore
+
+
+class BindEntryLike(Protocol):
+    nickname: str | None
+
+
+class GroupStoreLike(Protocol):
+    def get_bind_by_steam_id(
+        self, parent_id: str, steam_id: str
+    ) -> BindEntryLike | None: ...
 
 STEAM_ID_OFFSET = 76561197960265728
 MINIPROFILE_FRAME_NONE_SUFFIX = "none"
@@ -61,7 +71,7 @@ async def _fetch_image_to_cache(
         response = await client.get(url)
         if response.status_code != 200:
             return None
-        cache_file.write_bytes(response.content)
+        await anyio.Path(cache_file).write_bytes(response.content)
     return _load_image(cache_file, "RGBA")
 
 
@@ -69,12 +79,14 @@ async def fetch_avatar_frame(
     steam_id: str, cache_dir: Path | None, proxy: str | None = None
 ) -> Image.Image | None:
     if cache_dir is not None:
-        cached_frames = sorted(cache_dir.glob(f"avatar_frame_{steam_id}_*.png"))
+        cached_frames = sorted(
+            [Path(str(path)) async for path in anyio.Path(cache_dir).glob(f"avatar_frame_{steam_id}_*.png")]
+        )
         if cached_frames:
             return _load_image(cached_frames[0], "RGBA")
 
         none_marker = cache_dir / f"avatar_frame_{steam_id}_{MINIPROFILE_FRAME_NONE_SUFFIX}"
-        if none_marker.exists():
+        if await anyio.Path(none_marker).exists():
             return None
 
     account_id = int(steam_id) - STEAM_ID_OFFSET
@@ -92,7 +104,7 @@ async def fetch_avatar_frame(
     frame_url = data.get("avatar_frame")
     if not frame_url:
         if cache_dir is not None:
-            none_marker.touch(exist_ok=True)
+            await anyio.Path(none_marker).touch(exist_ok=True)
         return None
 
     frame_key = frame_url.rsplit("/", 1)[-1].split("?", 1)[0]
@@ -103,7 +115,8 @@ async def fetch_avatar_frame(
     )
 
     if cache_file is not None and cache_file.exists():
-        return _load_image(cache_file, "RGBA")
+        if await anyio.Path(cache_file).exists():
+            return _load_image(cache_file, "RGBA")
 
     if cache_file is None:
         async with httpx.AsyncClient(proxy=proxy, follow_redirects=True) as client:
@@ -149,8 +162,8 @@ async def fetch_game_icon(
 
 
 def convert_player_name_to_nickname(
-    data: dict[str, Any], parent_id: str, group_store: GroupStore
-) -> dict[str, Any]:
+    data: FriendStatusData, parent_id: str, group_store: GroupStoreLike
+) -> FriendStatusData:
     bind_entry = group_store.get_bind_by_steam_id(parent_id, data["steamid"])
     nickname = bind_entry.nickname.strip() if bind_entry and bind_entry.nickname else ""
     data["nickname"] = nickname or None
@@ -163,10 +176,9 @@ async def simplize_steam_player_data(
     avatar = await fetch_avatar(player, avatar_dir, proxy)
     avatar_frame = await fetch_avatar_frame(player["steamid"], avatar_dir, proxy)
     game_name = player.get("gameextrainfo")
+    game_id = player.get("gameid")
     game_icon = (
-        await fetch_game_icon(player["gameid"], avatar_dir, proxy)
-        if player.get("gameid")
-        else None
+        await fetch_game_icon(game_id, avatar_dir, proxy) if game_id is not None else None
     )
 
     if player["personastate"] == 0:
@@ -224,8 +236,11 @@ def image_to_bytes(image: Image.Image) -> bytes:
         return bio.getvalue()
 
 
-def hex_to_rgb(hex_color: str):
-    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    return cast(
+        tuple[int, int, int],
+        tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4)),
+    )
 
 
 def convert_timestamp_to_beijing_time(timestamp: int) -> str:

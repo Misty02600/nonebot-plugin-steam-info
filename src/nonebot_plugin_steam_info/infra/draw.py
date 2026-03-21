@@ -3,7 +3,7 @@ from __future__ import annotations
 from colorsys import hsv_to_rgb, rgb_to_hsv
 from io import BytesIO
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
@@ -17,6 +17,9 @@ MEMBER_AVATAR_SIZE = 50
 GAMING_ROW_HEIGHT = 78
 GAME_ICON_SIZE = 34
 AVATAR_FRAME_PADDING = 4
+AVATAR_SLOT_SIZE = MEMBER_AVATAR_SIZE + AVATAR_FRAME_PADDING * 2
+RGBColor = tuple[int, int, int]
+ColorPair = tuple[RGBColor, RGBColor]
 
 unknown_avatar_path = Path(__file__).parent.parent / "res/unknown_avatar.jpg"
 parent_status_path = Path(__file__).parent.parent / "res/parent_status.png"
@@ -71,7 +74,7 @@ def check_font() -> None:
         raise FileNotFoundError(f"Font file {bp} not found.")
 
 
-personastate_colors = {
+personastate_colors: dict[int, ColorPair] = {
     0: (hex_to_rgb("969697"), hex_to_rgb("656565")),
     1: (hex_to_rgb("6dcef5"), hex_to_rgb("4c91ac")),
     2: (hex_to_rgb("6dcef5"), hex_to_rgb("4c91ac")),
@@ -80,6 +83,8 @@ personastate_colors = {
     5: (hex_to_rgb("6dcef5"), hex_to_rgb("4c91ac")),
     6: (hex_to_rgb("6dcef5"), hex_to_rgb("4c91ac")),
 }
+
+GAMING_TEXT_FILL: ColorPair = (hex_to_rgb("e3ffc2"), hex_to_rgb("8ebe56"))
 
 
 def vertically_concatenate_images(images: list[Image.Image]) -> Image.Image:
@@ -209,26 +214,31 @@ def draw_friend_status(
     canvas = Image.new("RGBA", (WIDTH, row_height), (*hex_to_rgb("1e2024"), 255))
     draw = ImageDraw.Draw(canvas)
 
-    if status != "在线" and personastate == 1:
-        fill = (hex_to_rgb("e3ffc2"), hex_to_rgb("8ebe56"))
-    elif status != "离开" and personastate == 3:
-        fill = (hex_to_rgb("e3ffc2"), hex_to_rgb("8ebe56"))
-    else:
-        fill = personastate_colors[personastate]
+    fill = _get_friend_status_fill(personastate, status, gaming_layout)
 
     avatar_image = _compose_avatar_with_frame(friend_avatar, avatar_frame)
     avatar_x = 60 if gaming_layout else 22
     avatar_y = (row_height - avatar_image.height) // 2
     canvas.paste(avatar_image, (avatar_x, avatar_y), avatar_image)
+    visual_avatar_y = avatar_y + AVATAR_FRAME_PADDING
+    visual_avatar_height = MEMBER_AVATAR_SIZE
 
     if gaming_layout:
         name_font = font_bold(19)
         game_font = font_regular(17)
-        name_height = _measure_text_height(name_font, display_name)
-        game_height = _measure_text_height(game_font, game_name or status)
-        text_block_height = name_height + game_height + 4
-        text_top = max(8, (row_height - text_block_height) // 2)
+        name_bbox = _measure_text_bbox(name_font, display_name)
+        game_bbox = _measure_text_bbox(game_font, game_name or status)
+        name_y, detail_y = _get_two_line_text_positions(
+            visual_avatar_y,
+            visual_avatar_height,
+            _bbox_height(name_bbox),
+            _bbox_height(game_bbox),
+        )
+        name_draw_y = _get_text_draw_y(name_bbox, name_y)
+        detail_draw_y = _get_text_draw_y(game_bbox, detail_y)
         icon_y = (row_height - GAME_ICON_SIZE) // 2
+        bar_x = avatar_x + avatar_image.width + 2
+        text_x = bar_x + 12
         bar_top = max(8, avatar_y + 3)
         bar_bottom = min(row_height - 8, avatar_y + avatar_image.height - 3)
 
@@ -239,34 +249,61 @@ def draw_friend_status(
             icon = rounded_rectangle(icon.convert("RGBA"), 8)
             canvas.paste(icon, (20, icon_y), icon)
 
-        draw.rectangle((120, bar_top, 123, bar_bottom), fill=hex_to_rgb("8ebe56"))
+        draw.rectangle((bar_x, bar_top, bar_x + 3, bar_bottom), fill=hex_to_rgb("8ebe56"))
         draw.text(
-            (132, text_top),
+            (text_x, name_draw_y),
             display_name,
             font=name_font,
             fill=fill[0],
         )
         draw.text(
-            (132, text_top + name_height + 4),
+            (text_x, detail_draw_y),
             game_name or status,
             font=game_font,
             fill=hex_to_rgb("8ebe56"),
         )
+        badge_text_x = text_x
+        badge_text_y = name_y
+        badge_font_size = 19
     else:
+        text_x = avatar_x + avatar_image.width + 18
+        name_font = font_bold(20)
+        status_font = font_regular(18)
+        name_bbox = _measure_text_bbox(name_font, display_name)
+        status_bbox = _measure_text_bbox(status_font, status)
+        name_y, detail_y = _get_two_line_text_positions(
+            visual_avatar_y,
+            visual_avatar_height,
+            _bbox_height(name_bbox),
+            _bbox_height(status_bbox),
+        )
+        name_draw_y = _get_text_draw_y(name_bbox, name_y)
+        detail_draw_y = _get_text_draw_y(status_bbox, detail_y)
         draw.text(
-            (22 + MEMBER_AVATAR_SIZE + 18, 12),
+            (text_x, name_draw_y),
             display_name,
-            font=font_bold(20),
+            font=name_font,
             fill=fill[0],
         )
         draw.text(
-            (22 + MEMBER_AVATAR_SIZE + 16, 36),
+            (text_x - 2, detail_draw_y),
             status,
-            font=font_regular(18),
+            font=status_font,
             fill=fill[1],
         )
+        badge_text_x = text_x
+        badge_text_y = name_y
+        badge_font_size = 20
 
-    _draw_persona_badge(canvas, display_name, personastate, gaming_layout)
+    _draw_persona_badge(
+        canvas,
+        display_name,
+        personastate,
+        badge_text_x,
+        badge_text_y,
+        badge_font_size,
+        gaming_layout,
+    )
 
     return canvas.convert("RGB")
 
@@ -274,13 +311,15 @@ def draw_friend_status(
 def _compose_avatar_with_frame(
     avatar: Image.Image, avatar_frame: Image.Image | None
 ) -> Image.Image:
+    composed = Image.new("RGBA", (AVATAR_SLOT_SIZE, AVATAR_SLOT_SIZE), (0, 0, 0, 0))
+    composed.paste(
+        avatar.convert("RGBA"),
+        (AVATAR_FRAME_PADDING, AVATAR_FRAME_PADDING),
+    )
     if avatar_frame is None:
-        return avatar.convert("RGBA")
+        return composed
 
-    framed_size = MEMBER_AVATAR_SIZE + AVATAR_FRAME_PADDING * 2
-    composed = Image.new("RGBA", (framed_size, framed_size), (0, 0, 0, 0))
-    composed.paste(avatar.convert("RGBA"), (AVATAR_FRAME_PADDING, AVATAR_FRAME_PADDING))
-    frame = avatar_frame.resize((framed_size, framed_size), Image.Resampling.BICUBIC)
+    frame = avatar_frame.resize((AVATAR_SLOT_SIZE, AVATAR_SLOT_SIZE), Image.Resampling.BICUBIC)
     composed.alpha_composite(frame)
     return composed
 
@@ -289,12 +328,14 @@ def _draw_persona_badge(
     canvas: Image.Image,
     display_name: str,
     personastate: int,
+    text_x: int,
+    text_y: int,
+    font_size: int,
     gaming_layout: bool,
 ) -> None:
     draw = ImageDraw.Draw(canvas)
-    name_width = int(draw.textlength(display_name, font=font_bold(19 if gaming_layout else 20)))
-    text_x = 132 if gaming_layout else 22 + MEMBER_AVATAR_SIZE + 18
-    y = 12 if gaming_layout else 18
+    name_width = int(draw.textlength(display_name, font=font_bold(font_size)))
+    y = text_y if gaming_layout else text_y + 6
 
     if personastate == 2:
         badge = Image.open(busy_path).convert("RGBA")
@@ -306,9 +347,53 @@ def _draw_persona_badge(
         canvas.paste(badge, (text_x + name_width + 8, y))
 
 
+def _get_friend_status_fill(
+    personastate: int,
+    status: str,
+    gaming_layout: bool,
+) -> ColorPair:
+    if gaming_layout:
+        return GAMING_TEXT_FILL
+    if status != "在线" and personastate == 1:
+        return GAMING_TEXT_FILL
+    if status != "离开" and personastate == 3:
+        return GAMING_TEXT_FILL
+    return personastate_colors[personastate]
+
+
+def _get_two_line_text_positions(
+    container_y: int,
+    container_height: int,
+    primary_height: int,
+    secondary_height: int,
+    inset: int = 0,
+    min_gap: int = 4,
+) -> tuple[int, int]:
+    primary_y = container_y + inset
+    secondary_y = container_y + container_height - secondary_height - inset
+    secondary_y = max(secondary_y, primary_y + primary_height + min_gap)
+    return primary_y, secondary_y
+
+
 def _measure_text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
-    bbox = font.getbbox(text or "A")
+    return _bbox_height(_measure_text_bbox(font, text))
+
+
+def _measure_text_bbox(
+    font: ImageFont.FreeTypeFont, text: str
+) -> tuple[int, int, int, int]:
+    return cast(tuple[int, int, int, int], font.getbbox(text or "A"))
+
+
+def _bbox_height(bbox: tuple[int, int, int, int]) -> int:
     return max(1, bbox[3] - bbox[1])
+
+
+def _get_text_draw_y(
+    bbox: tuple[int, int, int, int],
+    visual_top_y: int,
+) -> int:
+    return visual_top_y - bbox[1]
 
 
 def _draw_status_section(
