@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: {{ width }}px;
+      background: {{ card_background }};
+    }
+
+    body {
+      color: #ffffff;
+    }
+
+    img {
+      display: block;
+    }
+
+    .card {
+      width: {{ width }}px;
+      background: {{ card_background }};
+      overflow: hidden;
+    }
+
+    .parent-status {
+      position: relative;
+      width: {{ width }}px;
+      height: 120px;
+      background: url('{{ parent_background_src }}') no-repeat left top;
+      background-size: {{ width }}px 120px;
+      overflow: hidden;
+    }
+
+    .parent-avatar {
+      position: absolute;
+      left: 16px;
+      top: 32px;
+      width: 72px;
+      height: 72px;
+    }
+
+    .parent-name {
+      position: absolute;
+      left: 104px;
+      top: 44px;
+      white-space: nowrap;
+      max-width: 260px;
+      overflow: hidden;
+    }
+
+    .parent-online {
+      position: absolute;
+      left: 104px;
+      top: 68px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .friends-search {
+      position: relative;
+      width: {{ width }}px;
+      height: 50px;
+      background: rgb(67, 73, 83);
+      overflow: hidden;
+    }
+
+    .friends-search-action {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 83px;
+      height: 50px;
+    }
+
+    .friends-search-title {
+      position: absolute;
+      left: 24px;
+      top: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .section {
+      position: relative;
+      width: {{ width }}px;
+      background: {{ card_background }};
+      overflow: hidden;
+    }
+
+    .section-header {
+      position: relative;
+      width: {{ width }}px;
+      height: 40px;
+    }
+
+    .section-title {
+      position: absolute;
+      left: 22px;
+      top: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .section-count {
+      position: absolute;
+      top: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .friend-row {
+      position: relative;
+      width: {{ width }}px;
+      background: {{ card_background }};
+      overflow: hidden;
+    }
+
+    .game-icon {
+      position: absolute;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .avatar-slot {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+    }
+
+    .avatar {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+    }
+
+    .avatar-frame {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 58px;
+      height: 58px;
+    }
+
+    .game-bar {
+      position: absolute;
+      width: 3px;
+      background: rgb(142, 190, 86);
+    }
+
+    .text-box {
+      position: absolute;
+      right: 14px;
+      overflow: hidden;
+    }
+
+    .name-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      overflow: hidden;
+    }
+
+    .detail-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+
+    .line-image {
+      display: block;
+    }
+
+    .section-footer {
+      height: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="parent-status">
+      <img class="parent-avatar" src="{{ parent_avatar_src }}" alt="" />
+      <div class="parent-name">
+        <img
+          class="line-image"
+          src="{{ parent_name_sprite.src }}"
+          alt=""
+          style="width: {{ parent_name_sprite.width }}px; height: {{ parent_name_sprite.height }}px;"
+        />
+      </div>
+      <div class="parent-online">
+        <img
+          class="line-image"
+          src="{{ parent_online_sprite.src }}"
+          alt=""
+          style="width: {{ parent_online_sprite.width }}px; height: {{ parent_online_sprite.height }}px;"
+        />
+      </div>
+    </div>
+
+    <div class="friends-search">
+      <div class="friends-search-title">
+        <img
+          class="line-image"
+          src="{{ friends_search_title_sprite.src }}"
+          alt=""
+          style="width: {{ friends_search_title_sprite.width }}px; height: {{ friends_search_title_sprite.height }}px;"
+        />
+      </div>
+      <img class="friends-search-action" src="{{ friends_search_src }}" alt="" />
+    </div>
+
+    {% for section in sections %}
+    <div class="section" style="height: {{ section.height }}px;">
+      <div class="section-header">
+        <div class="section-title">
+          <img
+            class="line-image"
+            src="{{ section.title_sprite.src }}"
+            alt=""
+            style="width: {{ section.title_sprite.width }}px; height: {{ section.title_sprite.height }}px;"
+          />
+        </div>
+        {% if section.count_sprite %}
+        <div
+          class="section-count"
+          style="left: {{ section.count_left }}px;"
+        >
+          <img
+            class="line-image"
+            src="{{ section.count_sprite.src }}"
+            alt=""
+            style="width: {{ section.count_sprite.width }}px; height: {{ section.count_sprite.height }}px;"
+          />
+        </div>
+        {% endif %}
+      </div>
+
+      {% for row in section.rows %}
+      <div class="friend-row" style="height: {{ row.row_height }}px;">
+        {% if row.gaming and row.game_icon_src %}
+        <img
+          class="game-icon"
+          src="{{ row.game_icon_src }}"
+          alt=""
+          style="
+            left: {{ row.game_icon_left }}px;
+            top: {{ row.game_icon_top }}px;
+            width: {{ row.game_icon_size }}px;
+            height: {{ row.game_icon_size }}px;
+          "
+        />
+        {% endif %}
+
+        <div
+          class="avatar-slot"
+          style="left: {{ row.avatar_slot_left }}px; top: {{ row.avatar_slot_top }}px;"
+        >
+          <img
+            class="avatar"
+            src="{{ row.avatar_src }}"
+            alt=""
+            style="left: 4px; top: 4px;"
+          />
+          {% if row.avatar_frame_src %}
+          <img class="avatar-frame" src="{{ row.avatar_frame_src }}" alt="" />
+          {% endif %}
+        </div>
+
+        {% if row.bar_color %}
+        <div
+          class="game-bar"
+          style="
+            left: {{ row.bar_left }}px;
+            top: {{ row.bar_top }}px;
+            height: {{ row.bar_height }}px;
+            background: {{ row.bar_color }};
+          "
+        ></div>
+        {% endif %}
+
+        <div
+          class="text-box"
+          style="
+            left: {{ row.text_left }}px;
+            top: {{ row.text_top }}px;
+            height: {{ row.text_height }}px;
+          "
+        >
+          <div
+            class="name-line"
+            style="top: 0; height: {{ row.name_line_height }}px;"
+          >
+            <img
+              class="line-image"
+              src="{{ row.name_sprite.src }}"
+              alt=""
+              style="width: {{ row.name_sprite.width }}px; height: {{ row.name_sprite.height }}px;"
+            />
+          </div>
+          <div
+            class="detail-line"
+            style="height: {{ row.detail_line_height }}px;"
+          >
+            <img
+              class="line-image"
+              src="{{ row.detail_sprite.src }}"
+              alt=""
+              style="width: {{ row.detail_sprite.width }}px; height: {{ row.detail_sprite.height }}px;"
+            />
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="section-footer"></div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

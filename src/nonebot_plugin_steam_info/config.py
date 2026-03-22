@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -14,6 +16,9 @@ class Config(BaseModel):
     )
     steam_broadcast_type: str = Field(
         default="part", description="播报类型：all / part / none"
+    )
+    steam_render_mode: Literal["pil", "htmlkit", "htmlrender"] = Field(
+        default="pil", description="好友状态图渲染方式：pil / htmlkit / htmlrender"
     )
     steam_disable_broadcast_on_startup: bool = Field(
         default=False, description="是否禁用启动时的首次播报"

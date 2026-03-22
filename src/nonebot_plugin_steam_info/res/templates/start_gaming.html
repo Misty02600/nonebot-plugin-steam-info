@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 424px;
+      height: 105px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    img {
+      display: block;
+    }
+
+    .card {
+      position: relative;
+      width: 424px;
+      height: 105px;
+      background: url('{{ background_src }}') no-repeat left top;
+      background-size: 424px 105px;
+      overflow: hidden;
+    }
+
+    .avatar {
+      position: absolute;
+      left: 15px;
+      top: 20px;
+      width: 66px;
+      height: 66px;
+    }
+
+    .display-name {
+      position: absolute;
+      left: 104px;
+      top: 14px;
+      right: 16px;
+      overflow: hidden;
+    }
+
+    .playing {
+      position: absolute;
+      left: 103px;
+      top: 42px;
+      right: 16px;
+      overflow: hidden;
+    }
+
+    .game-name {
+      position: absolute;
+      left: 104px;
+      top: 66px;
+      right: 16px;
+      overflow: hidden;
+    }
+
+    .line-image {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="avatar" src="{{ avatar_src }}" alt="" />
+    <div class="display-name">
+      <img
+        class="line-image"
+        src="{{ display_name_sprite.src }}"
+        alt=""
+        style="width: {{ display_name_sprite.width }}px; height: {{ display_name_sprite.height }}px;"
+      />
+    </div>
+    <div class="playing">
+      <img
+        class="line-image"
+        src="{{ playing_sprite.src }}"
+        alt=""
+        style="width: {{ playing_sprite.width }}px; height: {{ playing_sprite.height }}px;"
+      />
+    </div>
+    <div class="game-name">
+      <img
+        class="line-image"
+        src="{{ game_name_sprite.src }}"
+        alt=""
+        style="width: {{ game_name_sprite.width }}px; height: {{ game_name_sprite.height }}px;"
+      />
+    </div>
+  </div>
+</body>
+</html>

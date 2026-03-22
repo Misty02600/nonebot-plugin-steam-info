@@ -10,11 +10,8 @@ from nonebot_plugin_uninfo import Uninfo
 from PIL import Image as PILImage
 
 from ...core.models import ProcessedPlayer
-from ...infra.draw import (
-    draw_friends_status,
-    draw_start_gaming,
-    vertically_concatenate_images,
-)
+from ...infra.draw import vertically_concatenate_images
+from ...infra.render import render_friends_status, render_start_gaming
 from ...infra.utils import (
     convert_player_name_to_nickname,
     fetch_avatar,
@@ -117,7 +114,12 @@ async def broadcast_steam_info(
         ]
 
         parent_avatar, parent_name = group_store.get_info(parent_id)
-        image = draw_friends_status(parent_avatar, parent_name, steam_status_data)
+        image = await render_friends_status(
+            parent_avatar,
+            parent_name,
+            steam_status_data,
+            config.steam_render_mode,
+        )
         image_bytes = image_to_bytes(image)
         uni_msg = UniMessage([Text(text_content), Image(raw=image_bytes)])
     elif config.steam_broadcast_type == "part":
@@ -128,11 +130,12 @@ async def broadcast_steam_info(
                     parent_id, entry["player"]["steamid"]
                 )
                 nickname = bind_info.nickname if bind_info else None
-                img = draw_start_gaming(
+                img = await render_start_gaming(
                     (await fetch_avatar(entry["player"], cache_path, config.proxy)),
                     entry["player"]["personaname"],
                     entry["player"].get("gameextrainfo", ""),
                     nickname,
+                    config.steam_render_mode,
                 )
                 images.append(img)
         if images == []:

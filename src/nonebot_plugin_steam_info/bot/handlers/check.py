@@ -5,7 +5,7 @@ from nonebot.params import CommandArg
 from nonebot_plugin_alconna import Image, UniMessage
 from nonebot_plugin_uninfo import Uninfo
 
-from ...infra.draw import draw_friends_status
+from ...infra.render import render_friends_status
 from ...infra.utils import (
     convert_player_name_to_nickname,
     image_to_bytes,
@@ -52,6 +52,11 @@ async def check_handle(bot: Bot, session: Uninfo, arg: Message = CommandArg()):
         for player in steam_info["response"]["players"]
     ]
 
-    image = draw_friends_status(parent_avatar, parent_name, steam_status_data)
+    image = await render_friends_status(
+        parent_avatar,
+        parent_name,
+        steam_status_data,
+        config.steam_render_mode,
+    )
 
     await check.finish(await UniMessage(Image(raw=image_to_bytes(image))).export(bot))

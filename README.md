@@ -3,7 +3,7 @@
 
 ## 介绍
 
-这是一个基于 NoneBot2 的 Steam 好友状态播报插件，拥有绑定 Steam ID，查询群友状态，展示个人 Steam 主页等功能，支持跨平台，画图部分 100% 使用 Pillow 实现，较无头浏览器渲染更加轻量高效
+这是一个基于 NoneBot2 的 Steam 好友状态播报插件，拥有绑定 Steam ID，查询群友状态，展示个人 Steam 主页等功能，支持跨平台。默认使用 Pillow 渲染，也支持切换到 `nonebot-plugin-htmlkit` 或 `nonebot-plugin-htmlrender` 的 HTML 渲染模式。
 
 ## 功能
 - [x] 绑定 Steam ID
@@ -92,12 +92,33 @@
 | STEAM_REQUEST_INTERVAL | 300 | Steam 状态轮询间隔。单位为秒 |
 | STEAM_BROADCAST_SEND_DELAY | 2.0 | 群播报发送间隔。单位为秒，控制不同群之间的发送节奏 |
 | STEAM_BROADCAST_TYPE | `"part"` | 播报类型。`"part"` 为部分播报(图 2)，`"all"` 为全部播报(图 1)，`"none"` 为只播报文字消息 |
+| STEAM_RENDER_MODE | `"pil"` | 好友状态图渲染方式。`"pil"` 为原有 Pillow 渲染，`"htmlkit"` 为 litehtml 渲染，`"htmlrender"` 为 Playwright 浏览器渲染 |
 | STEAM_DISABLE_BROADCAST_ON_STARTUP | `False` | Bot 启动时是否禁用播报 |
 | STEAM_FONT_REGULAR_PATH | fonts/MiSans-Regular.ttf | Regular 字体相对目录 |
 | STEAM_FONT_LIGHT_PATH | fonts/MiSans-Light.ttf | Light 字体相对目录 |
 | STEAM_FONT_BOLD_PATH |fonts/MiSans-Bold.ttf | Bold 字体相对目录 |
 
 最后再把仓库中 `fonts` 文件夹放到 Bot 的 **运行目录** 下，配置就完毕啦
+
+如果你想启用 HTML 渲染，可以在 `.env` 中加入：
+
+```env
+STEAM_RENDER_MODE=htmlkit
+```
+
+如果你想使用浏览器渲染，也可以切到：
+
+```env
+STEAM_RENDER_MODE=htmlrender
+```
+
+`htmlkit` 与 `htmlrender` 模式当前都覆盖了 `steamcheck` 和 Steam 播报用到的好友状态卡片，`steaminfo` 个人主页仍然使用 Pillow 渲染。
+
+其中 `htmlrender` 依赖 Playwright 浏览器环境。插件会在需要时尝试自动安装对应浏览器；如果你的运行环境禁止自动安装，也可以提前手动执行：
+
+```bash
+playwright install chromium
+```
 
 在默认配置下，项目结构大致如下：
 ```

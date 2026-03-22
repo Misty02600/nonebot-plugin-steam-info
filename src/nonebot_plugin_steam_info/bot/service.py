@@ -9,6 +9,7 @@ from nonebot.log import logger
 
 from ..config import Config
 from ..infra.draw import check_font, set_font_paths
+from ..infra.render import preload_render_plugin
 from ..infra.steam_client import SteamAPIClient
 from ..infra.steam_state import SteamInfoState
 from ..infra.stores import GroupStore
@@ -21,6 +22,8 @@ else:
     from nonebot import get_driver
 
     config = Config.parse_obj(get_driver().config)
+
+preload_render_plugin(config.steam_render_mode)
 
 set_font_paths(
     config.steam_font_regular_path,
