@@ -18,6 +18,7 @@ class GroupConfig(msgspec.Struct, omit_defaults=True):
 
     name: str = ""
     disabled: bool = False
+    sync_disabled: bool = False
     binds: list[BindRecord] = msgspec.field(default_factory=list)
 
 

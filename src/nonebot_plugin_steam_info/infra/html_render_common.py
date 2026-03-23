@@ -30,10 +30,10 @@ from .draw import (
     zzz_online_path,
 )
 
-SECTION_TITLE_HEIGHT = 40
-SECTION_BOTTOM_PADDING = 6
-ONLINE_ROW_HEIGHT = 58
-GAMING_ROW_HEIGHT = 70
+SECTION_TITLE_HEIGHT = 64
+SECTION_BOTTOM_PADDING = 16
+ONLINE_ROW_HEIGHT = 64
+GAMING_ROW_HEIGHT = 78
 PARENT_STATUS_HEIGHT = 120
 FRIENDS_SEARCH_HEIGHT = 50
 START_GAMING_WIDTH = 424
@@ -41,7 +41,7 @@ START_GAMING_HEIGHT = 105
 CARD_BACKGROUND = "rgb(30, 32, 36)"
 DETAIL_GAMING_COLOR = "rgb(142, 190, 86)"
 ONLINE_BAR_COLOR = "rgb(76, 145, 172)"
-AWAY_BAR_COLOR = "rgb(54, 89, 105)"
+SECTION_DIVIDER_COLOR = "rgb(51, 52, 57)"
 
 
 class SerializedRowBase(TypedDict):
@@ -78,6 +78,7 @@ class SerializedRow(SerializedRowBase, total=False):
     game_icon_size: int
     bar_left: int
     bar_top: int
+    bar_width: int
     bar_height: int
     bar_color: str
     name_sprite: "TextSprite"
@@ -90,8 +91,10 @@ class SerializedSection(TypedDict):
     count_left: int
     rows: list[SerializedRow]
     height: int
+    divider_height: int
     title_sprite: "TextSprite"
     count_sprite: "TextSprite | None"
+    divider_color: str | None
 
 
 class TextSprite(TypedDict):
@@ -190,6 +193,17 @@ def build_sections(data: list[FriendStatusData]) -> list[SerializedSection]:
         sections.append(_serialize_section("在线好友", online_data, f"({len(online_data)})"))
     if offline_data:
         sections.append(_serialize_section("离线", offline_data, f"({len(offline_data)})"))
+
+    # 设置分割线颜色（统一灰色，和 PIL 一致）
+    for i, section in enumerate(sections):
+        if i < len(sections) - 1:
+            section["divider_color"] = SECTION_DIVIDER_COLOR
+            section["divider_height"] = 1
+            section["height"] += 1
+        else:
+            section["divider_color"] = None
+            section["divider_height"] = 0
+
     return sections
 
 
@@ -301,6 +315,7 @@ def _serialize_section(
         "count_left": {"游戏中": 104, "在线好友": 128, "离线": 78}.get(title, 104),
         "rows": rows,
         "height": height,
+        "divider_height": 0,
         "title_sprite": _text_sprite(
             title,
             draw_module.font_regular(22),
@@ -315,6 +330,7 @@ def _serialize_section(
             if count_text is not None
             else None
         ),
+        "divider_color": None,
     }
 
 
@@ -323,12 +339,11 @@ def _serialize_row(data: FriendStatusData) -> SerializedRow:
         "在线",
         "离开",
     }
-    has_bar = data["personastate"] != 0
     row_height = GAMING_ROW_HEIGHT if gaming_layout else ONLINE_ROW_HEIGHT
     avatar_slot_left = 60 if gaming_layout else 22
     avatar_slot_top = (row_height - AVATAR_SLOT_SIZE) // 2
     visual_avatar_top = avatar_slot_top + AVATAR_FRAME_PADDING
-    text_left = avatar_slot_left + AVATAR_SLOT_SIZE + (14 if has_bar else 18)
+    text_left = avatar_slot_left + AVATAR_SLOT_SIZE + (14 if gaming_layout else 18)
     fill = _get_friend_status_fill(data["personastate"], data["status"], gaming_layout)
     avatar_frame = data.get("avatar_frame")
     game_icon = data.get("game_icon")
@@ -401,19 +416,22 @@ def _serialize_row(data: FriendStatusData) -> SerializedRow:
         row["game_icon_left"] = 20
         row["game_icon_top"] = (row_height - GAME_ICON_SIZE) // 2
         row["game_icon_size"] = GAME_ICON_SIZE
-
-    if has_bar:
         bar_left = avatar_slot_left + AVATAR_SLOT_SIZE
-        bar_top = visual_avatar_top + 2
+        bar_top = avatar_slot_top + 3
         row["bar_left"] = bar_left
         row["bar_top"] = bar_top
-        row["bar_height"] = MEMBER_AVATAR_SIZE - 4
-        if gaming_layout:
-            row["bar_color"] = DETAIL_GAMING_COLOR
-        elif data["personastate"] == 3:
-            row["bar_color"] = AWAY_BAR_COLOR
-        else:
-            row["bar_color"] = ONLINE_BAR_COLOR
+        row["bar_width"] = 3
+        row["bar_height"] = AVATAR_SLOT_SIZE - 6
+        row["text_left"] = bar_left + 12
+        row["bar_color"] = DETAIL_GAMING_COLOR
+    elif data["personastate"] != 0:
+        bar_left = avatar_slot_left + AVATAR_SLOT_SIZE
+        row["bar_left"] = bar_left
+        row["bar_top"] = avatar_slot_top + 5
+        row["bar_width"] = 3
+        row["bar_height"] = AVATAR_SLOT_SIZE - 10
+        row["text_left"] = bar_left + 12
+        row["bar_color"] = ONLINE_BAR_COLOR
 
     return row
 
@@ -463,7 +481,7 @@ def _name_sprite(
     text_height = max(1, bbox[3] - bbox[1])
     badge = _load_badge_sprite(personastate, gaming_layout)
     badge_gap = 6 if personastate == 2 else 8
-    badge_top = 0
+    badge_top = 0 if gaming_layout else 6
 
     width = text_width
     height = text_height

@@ -53,6 +53,10 @@ class GroupStore(JsonStore[GroupDataStore]):
             self.data.groups[parent_id] = GroupConfig()
         return self.data.groups[parent_id]
 
+    @staticmethod
+    def _is_effectively_disabled(config: GroupConfig) -> bool:
+        return config.disabled or config.sync_disabled
+
     # region 绑定管理
 
     def add_bind(self, parent_id: str, record: BindRecord) -> None:
@@ -99,7 +103,7 @@ class GroupStore(JsonStore[GroupDataStore]):
             {
                 r.steam_id
                 for config in self.data.groups.values()
-                if not config.disabled
+                if not self._is_effectively_disabled(config)
                 for r in config.binds
             }
         )
@@ -111,8 +115,31 @@ class GroupStore(JsonStore[GroupDataStore]):
         return [
             parent_id
             for parent_id, config in self.data.groups.items()
-            if not config.disabled
+            if not self._is_effectively_disabled(config)
         ]
+
+    def sync_current_parents(
+        self, active_parent_ids: set[str]
+    ) -> tuple[list[str], list[str]]:
+        disabled_parent_ids: list[str] = []
+        restored_parent_ids: list[str] = []
+        changed = False
+
+        for parent_id, config in self.data.groups.items():
+            should_sync_disable = parent_id not in active_parent_ids
+            if config.sync_disabled == should_sync_disable:
+                continue
+            config.sync_disabled = should_sync_disable
+            changed = True
+            if should_sync_disable:
+                disabled_parent_ids.append(parent_id)
+            else:
+                restored_parent_ids.append(parent_id)
+
+        if changed:
+            self.save()
+
+        return disabled_parent_ids, restored_parent_ids
 
     def remove_group(self, parent_id: str) -> None:
         removed = self.data.groups.pop(parent_id, None)
@@ -159,6 +186,6 @@ class GroupStore(JsonStore[GroupDataStore]):
 
     def is_disabled(self, parent_id: str) -> bool:
         config = self.data.groups.get(parent_id)
-        return config.disabled if config else False
+        return self._is_effectively_disabled(config) if config else False
 
     # endregion

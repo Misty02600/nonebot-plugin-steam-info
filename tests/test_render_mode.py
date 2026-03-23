@@ -198,6 +198,49 @@ def test_build_sections_places_away_friend_in_online_section():
     assert [row["name"] for row in sections[1]["rows"]] == ["AwayUser"]
 
 
+def test_build_sections_uses_same_width_shorter_blue_bar_for_online_rows():
+    from nonebot_plugin_steam_info.infra.html_render_common import build_sections
+
+    sections = build_sections(
+        [_make_gaming_friend_status_data(), _make_friend_status_data()]
+    )
+
+    gaming_row = sections[0]["rows"][0]
+    online_row = sections[1]["rows"][0]
+    gaming_bar_width = cast(int, gaming_row.get("bar_width"))
+    online_bar_width = cast(int, online_row.get("bar_width"))
+    gaming_bar_height = cast(int, gaming_row.get("bar_height"))
+    online_bar_height = cast(int, online_row.get("bar_height"))
+
+    assert gaming_bar_width == 3
+    assert online_bar_width == 3
+    assert gaming_bar_height > online_bar_height
+
+
+def test_build_sections_uses_gray_divider_color():
+    from nonebot_plugin_steam_info.infra.html_render_common import (
+        SECTION_DIVIDER_COLOR,
+        build_sections,
+    )
+
+    sections = build_sections(
+        [
+            _make_gaming_friend_status_data(),
+            _make_friend_status_data(),
+            {
+                **_make_friend_status_data(),
+                "steamid": "76561198000000003",
+                "personastate": 0,
+                "status": "上次在线 1 个月前",
+            },
+        ]
+    )
+
+    assert SECTION_DIVIDER_COLOR == "rgb(51, 52, 57)"
+    assert sections[0]["divider_color"] == SECTION_DIVIDER_COLOR
+    assert sections[1]["divider_color"] == SECTION_DIVIDER_COLOR
+
+
 @pytest.mark.asyncio
 async def test_render_friends_status_uses_htmlrender_when_enabled(
     monkeypatch: pytest.MonkeyPatch,

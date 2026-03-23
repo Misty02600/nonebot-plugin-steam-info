@@ -77,7 +77,6 @@
     .friends-search-title {
       position: absolute;
       left: 24px;
-      top: 10px;
       white-space: nowrap;
       overflow: hidden;
     }
@@ -92,20 +91,20 @@
     .section-header {
       position: relative;
       width: {{ width }}px;
-      height: 40px;
+      height: 64px;
     }
 
     .section-title {
       position: absolute;
       left: 22px;
-      top: 10px;
+      top: 22px;
       white-space: nowrap;
       overflow: hidden;
     }
 
     .section-count {
       position: absolute;
-      top: 13px;
+      top: 25px;
       white-space: nowrap;
       overflow: hidden;
     }
@@ -145,7 +144,6 @@
 
     .game-bar {
       position: absolute;
-      width: 3px;
       background: rgb(142, 190, 86);
     }
 
@@ -175,7 +173,7 @@
     }
 
     .section-footer {
-      height: 6px;
+      height: 16px;
     }
   </style>
 </head>
@@ -202,7 +200,10 @@
     </div>
 
     <div class="friends-search">
-      <div class="friends-search-title">
+      <div
+        class="friends-search-title"
+        style="top: {{ (50 - friends_search_title_sprite.height) // 2 }}px;"
+      >
         <img
           class="line-image"
           src="{{ friends_search_title_sprite.src }}"
@@ -276,6 +277,7 @@
           style="
             left: {{ row.bar_left }}px;
             top: {{ row.bar_top }}px;
+            width: {{ row.bar_width }}px;
             height: {{ row.bar_height }}px;
             background: {{ row.bar_color }};
           "
@@ -317,6 +319,9 @@
       {% endfor %}
 
       <div class="section-footer"></div>
+      {% if section.divider_color %}
+      <div style="width: {{ width }}px; height: {{ section.divider_height }}px; background: {{ section.divider_color }};"></div>
+      {% endif %}
     </div>
     {% endfor %}
   </div>

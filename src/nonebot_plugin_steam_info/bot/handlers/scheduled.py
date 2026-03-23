@@ -33,12 +33,18 @@ async def prune_departed_groups(bot: Bot | None = None):
         logger.debug(f"通过 uninfo 获取场景列表失败，跳过 Steam 群同步: {exc}")
         return
 
-    for parent_id in group_store.get_all_parent_ids():
-        if parent_id in active_parent_ids:
-            continue
-        group_store.remove_group(parent_id)
+    disabled_parent_ids, restored_parent_ids = group_store.sync_current_parents(
+        active_parent_ids
+    )
+
+    for parent_id in disabled_parent_ids:
         logger.warning(
-            f"群 {parent_id} 已不在当前 Bot 群列表中，已自动清理 Steam 群数据"
+            f"群 {parent_id} 已不在当前 Bot 群列表中，已自动禁用 Steam 播报"
+        )
+
+    for parent_id in restored_parent_ids:
+        logger.info(
+            f"群 {parent_id} 已重新出现在当前 Bot 群列表中，已恢复 Steam 播报同步状态"
         )
 
 

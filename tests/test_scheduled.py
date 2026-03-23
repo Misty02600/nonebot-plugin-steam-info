@@ -5,16 +5,15 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_prune_departed_groups_removes_missing_groups(monkeypatch):
+async def test_prune_departed_groups_sync_disables_missing_groups(monkeypatch):
     from nonebot_plugin_steam_info.bot.handlers import scheduled
 
-    remove_group_mock = MagicMock()
+    sync_current_parents_mock = MagicMock(return_value=(["1002"], []))
     monkeypatch.setattr(
         scheduled,
         "group_store",
         SimpleNamespace(
-            get_all_parent_ids=lambda: ["1001", "1002"],
-            remove_group=remove_group_mock,
+            sync_current_parents=sync_current_parents_mock,
         ),
     )
     monkeypatch.setattr(
@@ -39,8 +38,46 @@ async def test_prune_departed_groups_removes_missing_groups(monkeypatch):
 
     await scheduled.prune_departed_groups()
 
-    remove_group_mock.assert_called_once_with("1002")
+    sync_current_parents_mock.assert_called_once_with({"1001"})
     logger_warning.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_prune_departed_groups_restores_returned_groups(monkeypatch):
+    from nonebot_plugin_steam_info.bot.handlers import scheduled
+
+    sync_current_parents_mock = MagicMock(return_value=([], ["1001"]))
+    monkeypatch.setattr(
+        scheduled,
+        "group_store",
+        SimpleNamespace(
+            sync_current_parents=sync_current_parents_mock,
+        ),
+    )
+    monkeypatch.setattr(
+        scheduled.nonebot,
+        "get_bot",
+        lambda: SimpleNamespace(adapter=SimpleNamespace(get_name=lambda: "OneBot V11")),
+    )
+    monkeypatch.setattr(
+        scheduled,
+        "get_interface",
+        lambda _bot: SimpleNamespace(
+            get_scenes=AsyncMock(
+                side_effect=[
+                    [SimpleNamespace(id="1001")],
+                    [],
+                ]
+            )
+        ),
+    )
+    logger_info = MagicMock()
+    monkeypatch.setattr(scheduled.logger, "info", logger_info)
+
+    await scheduled.prune_departed_groups()
+
+    sync_current_parents_mock.assert_called_once_with({"1001"})
+    logger_info.assert_called_once()
 
 
 @pytest.mark.asyncio
