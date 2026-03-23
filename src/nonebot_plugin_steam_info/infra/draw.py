@@ -334,16 +334,28 @@ def _draw_persona_badge(
     gaming_layout: bool,
 ) -> None:
     draw = ImageDraw.Draw(canvas)
-    name_width = int(draw.textlength(display_name, font=font_bold(font_size)))
-    y = text_y if gaming_layout else text_y + 6
+    font = font_bold(font_size)
+    name_width = int(draw.textlength(display_name, font=font))
 
     if personastate == 2:
         badge = Image.open(busy_path).convert("RGBA")
+        y = text_y + _get_persona_badge_top_offset(
+            font,
+            display_name,
+            badge.height,
+            personastate,
+        )
         canvas.paste(badge, (text_x + name_width + 6, y), badge)
     elif personastate == 4:
         badge = Image.open(
             zzz_gaming_path if gaming_layout else zzz_online_path
         ).convert("RGBA")
+        y = text_y + _get_persona_badge_top_offset(
+            font,
+            display_name,
+            badge.height,
+            personastate,
+        )
         canvas.paste(badge, (text_x + name_width + 8, y))
 
 
@@ -387,6 +399,18 @@ def _measure_text_bbox(
 
 def _bbox_height(bbox: tuple[int, int, int, int]) -> int:
     return max(1, bbox[3] - bbox[1])
+
+
+def _get_persona_badge_top_offset(
+    font: ImageFont.FreeTypeFont,
+    display_name: str,
+    badge_height: int,
+    personastate: int,
+) -> int:
+    if personastate == 4:
+        return 0
+    text_height = _bbox_height(_measure_text_bbox(font, display_name))
+    return max(0, (text_height - badge_height) // 2)
 
 
 def _get_text_draw_y(

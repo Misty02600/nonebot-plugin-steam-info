@@ -122,6 +122,7 @@ def test_two_line_text_positions_align_to_avatar_slot_edges():
 
 def test_text_draw_y_offsets_font_top_bbox():
     from nonebot_plugin_steam_info.infra.draw import (
+        _get_persona_badge_top_offset,
         _get_text_draw_y,
         _measure_text_bbox,
         font_bold,
@@ -130,3 +131,7 @@ def test_text_draw_y_offsets_font_top_bbox():
     bbox = _measure_text_bbox(font_bold(19), "Misty")
 
     assert _get_text_draw_y(bbox, 10) == 10 - bbox[1]
+    assert _get_persona_badge_top_offset(font_bold(19), "Misty", 13, 4) == 0
+    assert _get_persona_badge_top_offset(font_bold(20), "Misty", 13, 4) == 0
+    assert _get_persona_badge_top_offset(font_bold(19), "Misty", 18, 2) == 1
+    assert _get_persona_badge_top_offset(font_bold(20), "Misty", 18, 2) == 2

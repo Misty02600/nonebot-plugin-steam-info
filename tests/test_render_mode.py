@@ -217,8 +217,9 @@ def test_build_sections_uses_same_width_shorter_blue_bar_for_online_rows():
     assert gaming_bar_height > online_bar_height
 
 
-def test_build_sections_uses_gray_divider_color():
+def test_build_sections_uses_blue_gaming_divider_and_gray_online_divider():
     from nonebot_plugin_steam_info.infra.html_render_common import (
+        ONLINE_SECTION_DIVIDER_COLOR,
         SECTION_DIVIDER_COLOR,
         build_sections,
     )
@@ -236,9 +237,23 @@ def test_build_sections_uses_gray_divider_color():
         ]
     )
 
+    assert ONLINE_SECTION_DIVIDER_COLOR == "rgb(76, 145, 172)"
     assert SECTION_DIVIDER_COLOR == "rgb(51, 52, 57)"
-    assert sections[0]["divider_color"] == SECTION_DIVIDER_COLOR
+    assert sections[0]["divider_color"] == ONLINE_SECTION_DIVIDER_COLOR
     assert sections[1]["divider_color"] == SECTION_DIVIDER_COLOR
+
+
+def test_build_sections_positions_count_close_to_title():
+    from nonebot_plugin_steam_info.infra.html_render_common import build_sections
+
+    sections = build_sections(
+        [_make_friend_status_data(), {**_make_friend_status_data(), "steamid": "76561198000000003", "personastate": 0, "status": "上次在线 1 个月前"}]
+    )
+
+    online_section = sections[0]
+    title_sprite = cast(dict[str, object], online_section["title_sprite"])
+
+    assert online_section["count_left"] == 22 + cast(int, title_sprite["width"]) + 4
 
 
 @pytest.mark.asyncio

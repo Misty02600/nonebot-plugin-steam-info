@@ -41,6 +41,7 @@ START_GAMING_HEIGHT = 105
 CARD_BACKGROUND = "rgb(30, 32, 36)"
 DETAIL_GAMING_COLOR = "rgb(142, 190, 86)"
 ONLINE_BAR_COLOR = "rgb(76, 145, 172)"
+ONLINE_SECTION_DIVIDER_COLOR = ONLINE_BAR_COLOR
 SECTION_DIVIDER_COLOR = "rgb(51, 52, 57)"
 
 
@@ -194,10 +195,14 @@ def build_sections(data: list[FriendStatusData]) -> list[SerializedSection]:
     if offline_data:
         sections.append(_serialize_section("离线", offline_data, f"({len(offline_data)})"))
 
-    # 设置分割线颜色（统一灰色，和 PIL 一致）
+    # 游戏中到在线好友使用蓝线，在线好友到离线使用灰线。
     for i, section in enumerate(sections):
         if i < len(sections) - 1:
-            section["divider_color"] = SECTION_DIVIDER_COLOR
+            next_section = sections[i + 1]
+            if section["title"] == "游戏中" and next_section["title"] == "在线好友":
+                section["divider_color"] = ONLINE_SECTION_DIVIDER_COLOR
+            else:
+                section["divider_color"] = SECTION_DIVIDER_COLOR
             section["divider_height"] = 1
             section["height"] += 1
         else:
@@ -309,27 +314,29 @@ def _serialize_section(
 ) -> SerializedSection:
     rows = [_serialize_row(item) for item in data]
     height = SECTION_TITLE_HEIGHT + sum(row["row_height"] for row in rows) + SECTION_BOTTOM_PADDING
+    title_sprite = _text_sprite(
+        title,
+        draw_module.font_regular(22),
+        (197, 214, 212),
+    )
+    count_sprite = (
+        _text_sprite(
+            count_text,
+            draw_module.font_regular(18),
+            (103, 102, 92),
+        )
+        if count_text is not None
+        else None
+    )
     return {
         "title": title,
         "count_text": count_text,
-        "count_left": {"游戏中": 104, "在线好友": 128, "离线": 78}.get(title, 104),
+        "count_left": 22 + title_sprite["width"] + 4,
         "rows": rows,
         "height": height,
         "divider_height": 0,
-        "title_sprite": _text_sprite(
-            title,
-            draw_module.font_regular(22),
-            (197, 214, 212),
-        ),
-        "count_sprite": (
-            _text_sprite(
-                count_text,
-                draw_module.font_regular(18),
-                (103, 102, 92),
-            )
-            if count_text is not None
-            else None
-        ),
+        "title_sprite": title_sprite,
+        "count_sprite": count_sprite,
         "divider_color": None,
     }
 
@@ -481,7 +488,16 @@ def _name_sprite(
     text_height = max(1, bbox[3] - bbox[1])
     badge = _load_badge_sprite(personastate, gaming_layout)
     badge_gap = 6 if personastate == 2 else 8
-    badge_top = 0 if gaming_layout else 6
+    badge_top = (
+        draw_module._get_persona_badge_top_offset(
+            font,
+            display_name,
+            badge.height,
+            personastate,
+        )
+        if badge is not None
+        else 0
+    )
 
     width = text_width
     height = text_height
